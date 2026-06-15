@@ -293,15 +293,12 @@
       <div class="header-sub">High Tech Project S.r.l. — Palazzolo sull'Oglio (BS)</div>
     </div>
   </div>
-  <div style="display:flex;align-items:center;gap:16px">
-    <span id="save-status" style="font-size:11px;font-family:var(--mono);color:var(--text3)"></span>
-    <div class="anno-selector">
+  <div class="anno-selector">
     <button class="anno-btn active" onclick="setAnno('2025', this)">2025</button>
     <button class="anno-btn" onclick="setAnno('2024', this)">2024</button>
     <button class="anno-btn" onclick="setAnno('delta', this)">Δ 24→25</button>
     <button class="anno-btn" onclick="setAnno('Q1-2026', this)">Q1 2026</button>
   </div>
-</div>
 </div>
 
 <div class="container">
@@ -460,6 +457,10 @@ const DATA = {
     altriGA:        1077+2402+1627+4715+7522+5777+1434+2618+15387+3550+10083+23490+2618,
     // ONERI FINANZIARI
     interessi:      28130+28+723+1094+137,
+    // PROVENTI FINANZIARI
+    ricaviTitoli:   21773,   // interessi attivi su titoli circolante
+    intAttiviCC:    14124,   // interessi attivi c/c e depositi
+    dividendi:      259,
     // IMPOSTE
     ires:           102280,
     irap:           21969,
@@ -503,6 +504,10 @@ const DATA = {
     manutenzioni:   25968+7690+12896,
     altriGA:        327+2509+3161+7776+7250+6641+4021+3323+36760+4632+20732+49722+3323,
     interessi:      30774+225+344+205+76+12,
+    // PROVENTI FINANZIARI
+    ricaviTitoli:   1426,    // utile da titoli circolante
+    intAttiviCC:    27007,   // interessi attivi c/c e depositi
+    dividendi:      172,
     ires:           153158,
     irap:           39987,
     utile:          412973,
@@ -571,7 +576,6 @@ function setAnno(anno, btn) {
   currentAnno = anno;
   document.querySelectorAll('.anno-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  saveState();
   render();
 }
 
@@ -698,7 +702,7 @@ function renderPersonaleParams() {
             <td style="padding:9px 20px;text-align:right">
               <input type="number" value="${r.costo}" step="500"
                 style="background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:4px 8px;font-family:var(--mono);font-size:13px;color:var(--text);width:100px;text-align:right"
-                oninput="organico['${key}'].costo=parseInt(this.value)||0;saveState();refreshOrg()">
+                oninput="organico['${key}'].costo=parseInt(this.value)||0;refreshOrg()">
             </td>
             <td style="padding:9px 20px;font-family:var(--mono);font-size:13px;text-align:right;color:var(--text)">${fmt(r.n * r.costo)}</td>
           </tr>`).join('')}
@@ -722,80 +726,15 @@ function renderPersonaleParams() {
 
 function adjOrg(key, delta) {
   organico[key].n = Math.max(0, organico[key].n + delta);
-  saveState();
   refreshOrg();
 }
 
 function refreshOrg() {
+  try{ localStorage.setItem('htp_cont_last_modified', new Date().toISOString()); } catch(e){}
+  saveContState();
   renderPersonaleParams();
   renderCentri();
   renderPersonale();
-}
-
-// ─── PERSISTENZA FIREBASE (nessun token, nessun avviso) ─────────────────────
-const FB_URL = 'https://htp-tools-default-rtdb.europe-west1.firebasedatabase.app/htp_contabilita.json';
-let _saveTimer = null;
-
-async function loadState() {
-  try {
-    const res = await fetch(FB_URL);
-    if (!res.ok) return;
-    const state = await res.json();
-    if (!state) return;
-    if (state.organico) {
-      Object.keys(state.organico).forEach(key => {
-        if (organico[key]) {
-          organico[key].n     = state.organico[key].n;
-          organico[key].costo = state.organico[key].costo;
-        }
-      });
-    }
-    if (state.simParams) Object.assign(simParams, state.simParams);
-    if (state.currentAnno) {
-      currentAnno = state.currentAnno;
-      document.querySelectorAll('.anno-btn').forEach(b => {
-        const t = b.textContent.trim();
-        b.classList.toggle('active',
-          t === currentAnno ||
-          (currentAnno === 'Q1-2026' && t === 'Q1 2026') ||
-          (currentAnno === 'delta'   && t === 'Δ 24→25'));
-      });
-    }
-    showSaveStatus('✓ Parametri caricati', '#22c55e');
-  } catch(e) { console.warn('Caricamento Firebase fallito:', e); }
-}
-
-async function _doSave() {
-  try {
-    showSaveStatus('⏳ Salvataggio...', '#f59e0b');
-    const state = {
-      organico:    JSON.parse(JSON.stringify(organico)),
-      simParams:   JSON.parse(JSON.stringify(simParams)),
-      currentAnno: currentAnno,
-    };
-    const res = await fetch(FB_URL, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(state),
-    });
-    if (!res.ok) throw new Error(await res.text());
-    showSaveStatus('✓ Salvato', '#22c55e');
-  } catch(e) {
-    showSaveStatus('✗ Errore salvataggio', '#ef4444');
-  }
-}
-
-function saveState() {
-  clearTimeout(_saveTimer);
-  _saveTimer = setTimeout(_doSave, 800);
-}
-
-function showSaveStatus(msg, color) {
-  let el = document.getElementById('save-status');
-  if (!el) return;
-  el.textContent = msg;
-  el.style.color = color;
-  if (msg.startsWith('✓')) setTimeout(() => { if(el) el.textContent = ''; }, 3000);
 }
 
 // Interessi attivi stimati Q1 2026
@@ -944,9 +883,14 @@ function renderCE() {
       { label: '- Costi commerciali', v25: -c25.costoComm, v24: -c24.costoComm },
       { label: '- Costi G&A', v25: -c25.costoGA, v24: -c24.costoGA },
       { margin: true, label: '= EBIT netto (appross. EBT pre-fin)', v25: c25.ebt+DATA[2025].interessi, v24: c24.ebt+DATA[2024].interessi },
-      { sep: 'Finanziari & Fiscali' },
-      { label: '- Oneri finanziari', v25: -DATA[2025].interessi, v24: -DATA[2024].interessi },
-      { margin: true, label: '= EBT', v25: c25.ebt, v24: c24.ebt },
+      { sep: 'C) Proventi e Oneri Finanziari' },
+      { label: '+ Ricavi da titoli', v25: DATA[2025].ricaviTitoli||0, v24: DATA[2024].ricaviTitoli||0, pos: true },
+      { label: '+ Interessi attivi c/c e depositi', v25: DATA[2025].intAttiviCC||0, v24: DATA[2024].intAttiviCC||0, pos: true },
+      { label: '+ Dividendi', v25: DATA[2025].dividendi||0, v24: DATA[2024].dividendi||0, pos: true },
+      { label: '- Oneri finanziari (interessi passivi)', v25: -DATA[2025].interessi, v24: -DATA[2024].interessi },
+      { margin: true, label: '= Saldo C) gestione finanziaria', v25: (DATA[2025].ricaviTitoli||0)+(DATA[2025].intAttiviCC||0)+(DATA[2025].dividendi||0)-DATA[2025].interessi, v24: (DATA[2024].ricaviTitoli||0)+(DATA[2024].intAttiviCC||0)+(DATA[2024].dividendi||0)-DATA[2024].interessi },
+      { sep: 'Risultato finale' },
+      { margin: true, label: '= EBT (risultato prima imposte)', v25: c25.ebt + (DATA[2025].ricaviTitoli||0)+(DATA[2025].intAttiviCC||0)+(DATA[2025].dividendi||0), v24: c24.ebt + (DATA[2024].ricaviTitoli||0)+(DATA[2024].intAttiviCC||0)+(DATA[2024].dividendi||0) },
       { label: '- Imposte (IRES + IRAP)', v25: -(DATA[2025].ires+DATA[2025].irap), v24: -(DATA[2024].ires+DATA[2024].irap) },
       { margin: true, label: '= UTILE NETTO', v25: DATA[2025].utile, v24: DATA[2024].utile, highlight: true },
     ];
@@ -1004,9 +948,12 @@ function renderCE() {
     { label: '− Accantonamento TFM amm.re', val: -d.tfmAmm, sub: true },
     { label: '− Revisore + spese bancarie + altri G&A', val: -(d.revisore + d.speseBancarie + d.altriGA), sub: true },
     { margin: true, label: '= EBT (ante oneri finanziari appross.)', val: c.ebt + d.interessi },
-    { sep: 'Oneri Finanziari' },
+    { sep: 'C) Proventi e Oneri Finanziari' },
+    { label: '+ Ricavi da titoli', val: d.ricaviTitoli||0, sub: true, pos: true },
+    { label: '+ Interessi attivi c/c e depositi', val: d.intAttiviCC||0, sub: true, pos: true },
+    { label: '+ Dividendi', val: d.dividendi||0, sub: true, pos: true },
     { label: '− Interessi passivi', val: -d.interessi, sub: true },
-    { margin: true, label: '= EBT', val: c.ebt },
+    { margin: true, label: '= Saldo C) gestione finanziaria', val: (d.ricaviTitoli||0)+(d.intAttiviCC||0)+(d.dividendi||0)-d.interessi },
     { sep: 'Fiscalità' },
     { label: '− IRES', val: -d.ires, sub: true },
     { label: '− IRAP', val: -d.irap, sub: true },
@@ -1264,8 +1211,7 @@ function renderVariabili() {
 // ─── SIMULATORE COSTO ORARIO ──────────────────────────────────────────────────
 function renderSimulator() {
   const ref = document.getElementById('sim-anno-ref');
-  // Sempre 2025 come base — Q1 non è rappresentativo per i costi unitari annualizzati
-  const annoRef = '2025';
+  const annoRef = currentAnno === 'delta' ? '2025' : currentAnno;
   ref.textContent = annoRef;
   const d = DATA[annoRef];
   const c = calc(d);
@@ -1280,16 +1226,19 @@ function renderSimulator() {
   const nPresse = 6;
   const oreTotaliAnno = oreTurno * turni * giorniLavoro * nPresse;
 
-  if (Object.keys(simParams).length === 0 || simParams._anno !== annoRef) {
+  // Carica da localStorage se disponibile
+  if (Object.keys(simParams).length === 0) {
+    loadSimState();
+  }
+
+  if (Object.keys(simParams).length === 0) {
     simParams = {
       _anno: annoRef,
       turni: turni,
       nPresse: nPresse,
       giorniLavoro: giorniLavoro,
-      // costi fissi totali annui da spalmare sulle ore
       costisFissiAnno: Math.round(d.affitti + d.leasing + d.noleggi + c.ammTot + d.manutenzioni + c.costoPersonale * 0.47),
       costiCommGAAnno: Math.round(c.costoComm + c.costoGA + c.costoPersonale * 0.13),
-      // costi variabili per ora (dipendono dal volume prodotto, non dalle ore macchina)
       costoMP_h: Math.round(c.costoMP / oreTotaliAnno * 100) / 100,
       costoLavoroDiretto: Math.round(c.costoPersonale * 0.40 / oreTotaliAnno * 100) / 100,
       costoEnergia: Math.round(d.energia * 0.8 / oreTotaliAnno * 100) / 100,
@@ -1323,7 +1272,7 @@ function renderSimulator() {
       <div class="input-wrap">
         <span class="input-prefix">${f.prefix}</span>
         <input type="number" class="input-field" step="${f.step}" value="${simParams[f.key]}"
-          oninput="simParams['${f.key}']=parseFloat(this.value)||0;saveState();renderSimResult()">
+          oninput="simParams['${f.key}']=parseFloat(this.value)||0;renderSimResult()">
       </div>
     </div>
   `).join('') + `
@@ -1332,7 +1281,7 @@ function renderSimulator() {
       <div class="input-wrap">
         <span class="input-prefix" style="color:var(--orange)">%</span>
         <input type="number" class="input-field" style="border-color:rgba(245,158,11,0.4)" step="1" value="${simParams.pctOverhead}"
-          oninput="simParams.pctOverhead=parseFloat(this.value)||0;saveState();renderSimResult()">
+          oninput="simParams.pctOverhead=parseFloat(this.value)||0;renderSimResult()">
       </div>
     </div>
     <div class="input-cell">
@@ -1340,7 +1289,7 @@ function renderSimulator() {
       <div class="input-wrap">
         <span class="input-prefix" style="color:var(--red)">%</span>
         <input type="number" class="input-field" style="border-color:rgba(239,68,68,0.3)" step="0.5" value="${simParams.pctScarto}"
-          oninput="simParams.pctScarto=parseFloat(this.value)||0;saveState();renderSimResult()">
+          oninput="simParams.pctScarto=parseFloat(this.value)||0;renderSimResult()">
       </div>
     </div>
     <div class="input-cell">
@@ -1348,7 +1297,7 @@ function renderSimulator() {
       <div class="input-wrap">
         <span class="input-prefix" style="color:var(--green)">%</span>
         <input type="number" class="input-field" style="border-color:rgba(34,197,94,0.3)" step="1" value="${simParams.pctMargine}"
-          oninput="simParams.pctMargine=parseFloat(this.value)||0;saveState();renderSimResult()">
+          oninput="simParams.pctMargine=parseFloat(this.value)||0;renderSimResult()">
       </div>
     </div>
   `;
@@ -1357,6 +1306,8 @@ function renderSimulator() {
 }
 
 function renderSimResult() {
+  try{ localStorage.setItem('htp_cont_last_modified', new Date().toISOString()); } catch(e){}
+  saveContState();
   const el = document.getElementById('sim-result');
   const s = simParams;
   const oreTot = (s.turni||1) * 8 * (s.giorniLavoro||220) * (s.nPresse||6);
@@ -1684,6 +1635,7 @@ function renderBreakEven() {
     'Consulenze + G&A fissi': Math.round((DATA[2025].consulAmm + DATA[2025].consulTec + DATA[2025].compensoAmm + DATA[2025].revisore + DATA[2025].speseBancarie) / 12),
     'TFM amministratore (accantonamento)': Math.round(DATA[2025].tfmAmm / 12),
     'Manutenzioni (quota fissa)': Math.round(DATA[2025].manutenzioni * 0.6 / 12),
+    'Royalties / management fees': Math.round(DATA[2025].royalties / 12),
     'Assicurazioni + altri fissi': Math.round(2500),
   };
 
@@ -1695,7 +1647,6 @@ function renderBreakEven() {
     'Personale diretto (10 op.)': pct(DATA[2025].salari * 0.53 + DATA[2025].contributi * 0.53 + DATA[2025].tfr * 0.53, R2025) / 100,
     'Energia (quota variabile 80%)': pct(DATA[2025].energia * 0.80, R2025) / 100,
     'Provvigioni agenti': pct(DATA[2025].provvigioni, R2025) / 100,
-    'Royalties / mgmt fees (1% + 0.5%)': 0.015,
     'Pubblicità/commerciale variabile': pct(DATA[2025].pubblicita + DATA[2025].svariComm, R2025) / 100,
   };
 
@@ -1801,6 +1752,46 @@ function renderBreakEven() {
   `;
 }
 
+// ─── PERSISTENZA LOCALSTORAGE ────────────────────────────────────────────────
+function saveContState() {
+  try {
+    // Salva organico (costo E numero persone)
+    const orgToSave = {};
+    Object.keys(organico).forEach(k => { orgToSave[k] = { costo: organico[k].costo, n: organico[k].n }; });
+    localStorage.setItem('htp_cont_organico', JSON.stringify(orgToSave));
+    // Salva simParams
+    if (Object.keys(simParams).length > 0) {
+      localStorage.setItem('htp_cont_simParams', JSON.stringify(simParams));
+    }
+    localStorage.setItem('htp_cont_last_modified', new Date().toISOString());
+  } catch(e) {}
+}
+
+function loadContState() {
+  try {
+    const savedOrg = localStorage.getItem('htp_cont_organico');
+    if (savedOrg) {
+      const parsed = JSON.parse(savedOrg);
+      Object.keys(parsed).forEach(k => {
+        if (organico[k]) {
+          organico[k].costo = parsed[k].costo;
+          if (parsed[k].n !== undefined) organico[k].n = parsed[k].n;
+        }
+      });
+    }
+  } catch(e) {}
+}
+
+function loadSimState() {
+  try {
+    const savedSim = localStorage.getItem('htp_cont_simParams');
+    if (savedSim) {
+      const parsed = JSON.parse(savedSim);
+      Object.assign(simParams, parsed);
+    }
+  } catch(e) {}
+}
+
 // ─── MAIN RENDER ─────────────────────────────────────────────────────────────
 function render() {
   renderKPI();
@@ -1815,14 +1806,9 @@ function render() {
   renderSimulator();
 }
 
-// ─── AVVIO ───────────────────────────────────────────────────────────────────
-async function init() {
-  render(); // mostra subito con valori default
-  await loadState(); // poi carica da GitHub e aggiorna
-  render(); // ridisegna con i valori salvati
-}
-
-init();
+loadContState();
+window.addEventListener('beforeunload', saveContState);
+render();
 </script>
 </body>
 </html>
