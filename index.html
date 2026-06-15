@@ -655,6 +655,7 @@ function setAnno(anno, btn) {
   currentAnno = anno;
   document.querySelectorAll('.anno-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
+  renderStimeQ1();
   render();
 }
 
@@ -1989,10 +1990,7 @@ function renderStimeQ1() {
 }
 
 function render() {
-  // Pannello stime Q1
-  renderStimeQ1();
-
-  // Box magazzino Q1 (legacy - ora gestito da renderStimeQ1)
+  // Box magazzino Q1 (legacy)
   const magBox = document.getElementById('mag-q1-box');
   if (magBox) magBox.style.display = 'none';
 
@@ -2016,6 +2014,7 @@ function render() {
 
 loadContState();
 window.addEventListener('beforeunload', saveContState);
+renderStimeQ1();
 render();
 </script>
 </body>
