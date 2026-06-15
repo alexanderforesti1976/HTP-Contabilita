@@ -738,7 +738,13 @@ function refreshOrg() {
 }
 
 // Interessi attivi stimati Q1 2026
-const _intAttiviQ1 = Math.round((1500000 + 623000) * 2.8 / 100 / 4); // ~€14.8k
+// Interessi attivi Q1 2026 stimati su base dati reali 2025:
+// Ricavi titoli 2025: €21.773 / 4 = €5.443
+// Interessi attivi c/c 2025: €14.124 / 4 = €3.531
+// Totale stimato Q1: €8.974 — di cui €1.709 già contabilizzati → residuo €7.265
+const _ricaviTitoliQ1 = Math.round(DATA[2025].ricaviTitoli / 4); // €5.443
+const _intAttiviCCQ1  = Math.round(DATA[2025].intAttiviCC / 4);  // €3.531
+const _intAttiviQ1 = _ricaviTitoliQ1 + _intAttiviCCQ1;           // €8.974
 
 function renderKPI() {
   const el = document.getElementById('kpi-strip');
@@ -832,12 +838,13 @@ function renderCE() {
         { label: '− Altri G&A + spese bancarie', val: -(d.speseBancarie + d.altriGA), sub: true },
         { sep: 'Proventi Finanziari' },
         { label: '+ Interessi attivi contabilizzati Q1', val: 1709, sub: true },
-        { label: '+ Interessi attivi stimati residui Q1 (non ancora contab.)', val: intAttiviStimati - 1709, sub: true, est: true, pos: true },
+        { label: '+ Ricavi titoli stimati Q1 (non ancora contab.)', val: _ricaviTitoliQ1, sub: true, est: true, pos: true },
+        { label: `+ Interessi attivi c/c residui stimati Q1 (non ancora contab.)`, val: _intAttiviCCQ1 - 1709, sub: true, est: true, pos: true },
         { sep: 'Oneri Finanziari' },
         { label: '− Interessi passivi', val: -d.interessi, sub: true },
         { margin: true, label: '= UTILE Q1 (da bilancio, incl. int.attivi €1.709, pre-amm.ti, senza var.rim.)', val: d.utile },
         { label: '+ Variazione rimanenze +€31.640 (non contab. nel trimestrale)', val: 31640, sub: true, est: true, pos: true },
-        { label: `+ Interessi attivi residui stimati ~€${Math.round((intAttiviStimati-1709)/1000)}k (non contab.)`, val: intAttiviStimati - 1709, sub: true, est: true, pos: true },
+        { label: `+ Proventi finanziari residui stimati ~€${Math.round((_intAttiviQ1-1709)/1000)}k (non contab.)`, val: _intAttiviQ1 - 1709, sub: true, est: true, pos: true },
         { margin: true, label: '= UTILE Q1 incl. rettifiche positive', val: d.utile + 31640 + (intAttiviStimati - 1709) },
         { label: '− Ammortamenti stimati Q1 ~€30k (non contab.)', val: -ammStimati, sub: true, est: true },
         { label: '− TFR dipendenti stimato Q1 ~€9k (non contab.)', val: -tfrStimato, sub: true, est: true },
