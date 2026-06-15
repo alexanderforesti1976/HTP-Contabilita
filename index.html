@@ -306,8 +306,9 @@
   <!-- PANNELLO STIME Q1 2026 (visibile solo per Q1 2026) -->
   <div id="stime-q1-panel" style="display:none;margin-bottom:1.2rem;">
     <div style="background:rgba(200,169,110,0.08);border:1px solid rgba(200,169,110,0.25);border-radius:12px;padding:1rem 1.2rem;">
-      <div style="font-size:0.8rem;font-weight:600;color:var(--accent);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:0.75rem;">
-        ⚠ Voci stimate Q1 2026 — aggiorna quando disponibile bilancio reale
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
+        <span style="font-size:0.8rem;font-weight:600;color:var(--accent);letter-spacing:0.06em;text-transform:uppercase;">⚠ Voci stimate Q1 2026</span>
+        <button onclick="resetStimeQ1()" style="font-size:0.72rem;padding:0.25rem 0.7rem;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;">↺ Reset valori default</button>
       </div>
       <div id="stime-q1-table"></div>
     </div>
@@ -929,11 +930,10 @@ function renderCE() {
         { label: `+ Variazione rimanenze +€${d.varRimanenze.toLocaleString('it-IT')} (non contab. nel trimestrale)`, val: d.varRimanenze, sub: true, est: true, pos: d.varRimanenze>=0 },
         { label: `+ Proventi finanziari residui stimati ~€${Math.round((_intAttiviQ1-1709)/1000)}k (non contab.)`, val: _intAttiviQ1 - 1709, sub: true, est: true, pos: true },
         { margin: true, label: '= UTILE Q1 incl. rettifiche positive', val: d.utile + d.varRimanenze + (intAttiviStimati - 1709) },
-        { label: '− Ammortamenti stimati Q1 ~€30k (non contab.)', val: -ammStimati, sub: true, est: true },
         { label: '− TFR dipendenti stimato Q1 ~€9k (non contab.)', val: -tfrStimato, sub: true, est: true },
         { label: `− 13ª mensilità stimata Q1 ~€${Math.round(terzDecima/1000)}k (non contab.)`, val: -terzDecima, sub: true, est: true },
         { label: `− Royalties stimate Q1 1,5% fatturato ~€${Math.round(royaltiesStimate/1000)}k (non contab.)`, val: -royaltiesStimate, sub: true, est: true },
-        { margin: true, label: '= UTILE Q1 stimato corretto', val: d.utile + d.varRimanenze + (intAttiviStimati - 1709) - ammStimati - tfrStimato - terzDecima - royaltiesStimate },
+        { margin: true, label: '= UTILE Q1 stimato corretto', val: d.utile + d.varRimanenze + (intAttiviStimati - 1709) - tfrStimato - terzDecima - royaltiesStimate },
       ].map(r => {
         if (r.sep) return `<div class="ce-row separator"><span class="label">${r.sep}</span></div>`;
         const p = r.val !== 0 ? pct(Math.abs(r.val), R).toFixed(1) : '—';
@@ -1885,6 +1885,23 @@ function loadSimState() {
 }
 
 // ─── MAIN RENDER ─────────────────────────────────────────────────────────────
+function resetStimeQ1() {
+  try { localStorage.removeItem('htp_cont_stime_q1'); localStorage.removeItem('htp_cont_magQ1'); } catch(e) {}
+  // Ripristina valori default
+  STIME_Q1.magazzino.stimato   = 200000; STIME_Q1.magazzino.reale   = null; STIME_Q1.magazzino.contab   = false;
+  STIME_Q1.ammortamenti.stimato= 30000;  STIME_Q1.ammortamenti.reale= null; STIME_Q1.ammortamenti.contab= false;
+  STIME_Q1.tfr.stimato         = 9300;   STIME_Q1.tfr.reale         = null; STIME_Q1.tfr.contab         = false;
+  STIME_Q1.terzaDecima.stimato = null;   STIME_Q1.terzaDecima.reale = null; STIME_Q1.terzaDecima.contab = false;
+  STIME_Q1.royalties.stimato   = null;   STIME_Q1.royalties.reale   = null; STIME_Q1.royalties.contab   = false;
+  STIME_Q1.tfmAmm.stimato      = null;   STIME_Q1.tfmAmm.reale      = null; STIME_Q1.tfmAmm.contab      = false;
+  STIME_Q1.imposte.stimato     = null;   STIME_Q1.imposte.reale     = null; STIME_Q1.imposte.contab     = false;
+  STIME_Q1.intAttivi.stimato   = null;   STIME_Q1.intAttivi.reale   = null; STIME_Q1.intAttivi.contab   = false;
+  _magQ1 = 200000;
+  DATA['Q1-2026'].varRimanenze = 200000 - (118997+3488+23679+22196);
+  renderStimeQ1();
+  render();
+}
+
 function handleStima(el) {
   const k = el.dataset.key;
   const type = el.dataset.type;
