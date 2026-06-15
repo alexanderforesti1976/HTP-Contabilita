@@ -918,7 +918,7 @@ function renderCE() {
         { sep: 'Costi G&A' },
         { label: '− Consulenze amm. + tecniche', val: -(d.consulAmm + d.consulTec), sub: true },
         { label: '− Compenso + contrib. amm.re', val: -d.compensoAmm, sub: true },
-        { label: `− TFM amm.re 20% utile lordo stimato (non contab.)`, val: -Math.round((d.utile + d.varRimanenze + (intAttiviStimati-1709) - tfrStimato - terzDecima - royaltiesStimate) * 0.20), sub: true, est: true },
+        { label: `− TFM amm.re ~20% utile ante TFM (non contab.)`, val: -Math.round((d.utile + d.varRimanenze + (intAttiviStimati-1709) - tfrStimato - terzDecima - royaltiesStimate) / 1.20 * 0.20), sub: true, est: true },
         { label: '− Altri G&A + spese bancarie', val: -(d.speseBancarie + d.altriGA), sub: true },
         { sep: 'Proventi Finanziari' },
         { label: '+ Interessi attivi contabilizzati Q1', val: 1709, sub: true },
@@ -933,8 +933,8 @@ function renderCE() {
         { label: '− TFR dipendenti stimato Q1 ~€9k (non contab.)', val: -tfrStimato, sub: true, est: true },
         { label: `− 13ª mensilità stimata Q1 ~€${Math.round(terzDecima/1000)}k (non contab.)`, val: -terzDecima, sub: true, est: true },
         { label: `− Royalties stimate Q1 1,5% fatturato ~€${Math.round(royaltiesStimate/1000)}k (non contab.)`, val: -royaltiesStimate, sub: true, est: true },
-        { label: `− TFM amm.re 20% utile lordo ~€${Math.round((d.utile + d.varRimanenze + (intAttiviStimati-1709) - tfrStimato - terzDecima - royaltiesStimate)*0.20/1000)}k (non contab.)`, val: -Math.round((d.utile + d.varRimanenze + (intAttiviStimati-1709) - tfrStimato - terzDecima - royaltiesStimate)*0.20), sub: true, est: true },
-        { margin: true, label: '= UTILE Q1 stimato corretto', val: Math.round((d.utile + d.varRimanenze + (intAttiviStimati-1709) - tfrStimato - terzDecima - royaltiesStimate) * 0.80) },
+        { label: `− TFM amm.re ~20% utile ante TFM ~€${Math.round((d.utile + d.varRimanenze + (intAttiviStimati-1709) - tfrStimato - terzDecima - royaltiesStimate)*0.20/1000)}k (non contab.)`, val: -Math.round((d.utile + d.varRimanenze + (intAttiviStimati-1709) - tfrStimato - terzDecima - royaltiesStimate) * 0.20), sub: true, est: true },
+        { margin: true, label: '= UTILE Q1 stimato corretto (ante imposte)', val: Math.round((d.utile + d.varRimanenze + (intAttiviStimati-1709) - tfrStimato - terzDecima - royaltiesStimate) * 0.80) },
       ].map(r => {
         if (r.sep) return `<div class="ce-row separator"><span class="label">${r.sep}</span></div>`;
         const p = r.val !== 0 ? pct(Math.abs(r.val), R).toFixed(1) : '—';
