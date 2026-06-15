@@ -1890,16 +1890,30 @@ function handleStima(el) {
   if (!k || !STIME_Q1[k]) return;
   if (type === 'stimato') {
     STIME_Q1[k].stimato = el.value === '' ? null : parseInt(el.value) || 0;
-    if (k === 'magazzino') { setMagQ1(el.value); return; }
+    if (k === 'magazzino') { 
+      _magQ1 = STIME_Q1[k].stimato || 200000;
+      const magEff = (STIME_Q1.magazzino.contab && STIME_Q1.magazzino.reale !== null) ? STIME_Q1.magazzino.reale : _magQ1;
+      DATA['Q1-2026'].varRimanenze = magEff - (118997+3488+23679+22196);
+    }
   } else if (type === 'reale') {
     STIME_Q1[k].reale = el.value === '' ? null : parseInt(el.value) || 0;
-    if (k === 'magazzino') { setMagQ1(_magQ1); return; }
+    if (k === 'magazzino') {
+      const magEff = (STIME_Q1.magazzino.contab && STIME_Q1.magazzino.reale !== null) ? STIME_Q1.magazzino.reale : _magQ1;
+      DATA['Q1-2026'].varRimanenze = magEff - (118997+3488+23679+22196);
+    }
   } else if (type === 'contab') {
     STIME_Q1[k].contab = el.checked;
-    if (k === 'magazzino') { setMagQ1(_magQ1); return; }
+    if (k === 'magazzino') {
+      const magEff = (STIME_Q1.magazzino.contab && STIME_Q1.magazzino.reale !== null) ? STIME_Q1.magazzino.reale : _magQ1;
+      DATA['Q1-2026'].varRimanenze = magEff - (118997+3488+23679+22196);
+    }
   }
   saveStimeQ1();
-  render();
+  // Ri-renderizza solo KPI e CE senza toccare la tabella stime
+  renderKPI();
+  renderCE();
+  // Se checkbox, ri-renderizza tutta la tabella per aggiornare i badge
+  if (type === 'contab') renderStimeQ1();
 }
 
 function renderStimeQ1() {
@@ -1938,7 +1952,8 @@ function renderStimeQ1() {
           <input type="number" value="${stimVal || ''}" placeholder="stimato"
             style="width:100px;padding:0.25rem 0.4rem;border-radius:5px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:0.78rem;font-family:var(--mono);text-align:right;"
             data-key="${k}" data-type="stimato"
-            oninput="handleStima(this)">\n        </td>
+            oninput="handleStima(this)">
+        </td>
         <td style="padding:0.5rem 0.4rem;">${badge}</td>
         <td style="padding:0.5rem 0.4rem;text-align:right;">
           <input type="number" value="${s.reale !== null ? s.reale : ''}" placeholder="reale"
