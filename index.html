@@ -303,13 +303,14 @@
 
 <div class="container">
 
-  <!-- MAGAZZINO Q1 2026 (visibile solo per Q1 2026) -->
-  <div id="mag-q1-box" style="display:none;background:rgba(200,169,110,0.08);border:1px solid rgba(200,169,110,0.2);border-radius:10px;padding:0.75rem 1.2rem;margin-bottom:1rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
-    <span style="font-size:0.82rem;color:var(--muted);">📦 Magazzino stimato Q1 2026</span>
-    <input type="number" id="mag-q1-input" value="200000" step="1000"
-      style="width:130px;padding:0.35rem 0.6rem;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:0.85rem;font-family:var(--mono);"
-      oninput="setMagQ1(this.value)">
-    <span style="font-size:0.75rem;color:var(--muted);" id="mag-q1-delta"></span>
+  <!-- PANNELLO STIME Q1 2026 (visibile solo per Q1 2026) -->
+  <div id="stime-q1-panel" style="display:none;margin-bottom:1.2rem;">
+    <div style="background:rgba(200,169,110,0.08);border:1px solid rgba(200,169,110,0.25);border-radius:12px;padding:1rem 1.2rem;">
+      <div style="font-size:0.8rem;font-weight:600;color:var(--accent);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:0.75rem;">
+        ⚠ Voci stimate Q1 2026 — aggiorna quando disponibile bilancio reale
+      </div>
+      <div id="stime-q1-table"></div>
+    </div>
   </div>
 
   <!-- KPI STRIP -->
@@ -577,22 +578,74 @@ const DATA = {
   }
 };
 
-// ─── MAGAZZINO Q1 2026 ───────────────────────────────────────────────────────
-let _magQ1 = 200000; // default €200k
+// ─── STIME Q1 2026 ───────────────────────────────────────────────────────────
+// Per ogni voce stimata: valore stimato, flag se già contabilizzato, valore reale se disponibile
+// Quando 'contab' = true, usa 'reale' nel calcolo invece della stima
+// Aggiornare qui quando arriva bilancio intermedio con dati reali
+const STIME_Q1 = {
+  magazzino:   { label: 'Magazzino (var. rimanenze)',     stimato: 200000,  contab: false, reale: null,  note: 'Stima scorte fine Q1' },
+  ammortamenti:{ label: 'Ammortamenti',                   stimato: 30000,   contab: false, reale: null,  note: '~€30k/trimestre su base 2025' },
+  tfr:         { label: 'TFR dipendenti',                 stimato: 9300,    contab: false, reale: null,  note: '~€37k annui / 4' },
+  terzaDecima: { label: '13ª mensilità',                  stimato: null,    contab: false, reale: null,  note: '1/12 salari annui × 3 mesi' },
+  royalties:   { label: 'Royalties (1,5% fatturato)',     stimato: null,    contab: false, reale: null,  note: '1% + 0,5% su ricavi Q1' },
+  tfmAmm:      { label: 'TFM Amministratore',             stimato: null,    contab: false, reale: null,  note: 'Accantonamento trimestrale' },
+  imposte:     { label: 'Imposte (IRES + IRAP)',          stimato: null,    contab: false, reale: null,  note: 'Stima su utile corretto' },
+  intAttivi:   { label: 'Proventi finanziari residui',    stimato: null,    contab: false, reale: null,  note: 'Titoli + c/c Q1 pro-rata 2025' },
+};
+
+// Carica stato STIME_Q1 da localStorage
+try {
+  const saved = localStorage.getItem('htp_cont_stime_q1');
+  if (saved) {
+    const parsed = JSON.parse(saved);
+    Object.keys(parsed).forEach(k => {
+      if (STIME_Q1[k]) {
+        STIME_Q1[k].contab = parsed[k].contab;
+        STIME_Q1[k].reale  = parsed[k].reale;
+        if (parsed[k].stimato !== undefined && parsed[k].stimato !== null) STIME_Q1[k].stimato = parsed[k].stimato;
+      }
+    });
+  }
+} catch(e) {}
+
+function saveStimeQ1() {
+  try {
+    const toSave = {};
+    Object.keys(STIME_Q1).forEach(k => {
+      toSave[k] = { contab: STIME_Q1[k].contab, reale: STIME_Q1[k].reale, stimato: STIME_Q1[k].stimato };
+    });
+    localStorage.setItem('htp_cont_stime_q1', JSON.stringify(toSave));
+    localStorage.setItem('htp_cont_last_modified', new Date().toISOString());
+  } catch(e) {}
+}
+
+// Restituisce il valore effettivo di una stima (reale se contabilizzato, stimato altrimenti)
+function getStima(key, fallback) {
+  const s = STIME_Q1[key];
+  if (!s) return fallback || 0;
+  if (s.contab && s.reale !== null) return s.reale;
+  return s.stimato !== null ? s.stimato : (fallback || 0);
+}
+
+
+let _magQ1 = STIME_Q1.magazzino.stimato || 200000;
 try {
   const saved = localStorage.getItem('htp_cont_magQ1');
-  if (saved) _magQ1 = parseInt(saved) || 200000;
+  if (saved && !STIME_Q1.magazzino.stimato) _magQ1 = parseInt(saved) || 200000;
 } catch(e) {}
 
 function setMagQ1(val) {
   _magQ1 = parseInt(val) || 200000;
+  STIME_Q1.magazzino.stimato = _magQ1;
   try { localStorage.setItem('htp_cont_magQ1', _magQ1); } catch(e) {}
-  // aggiorna varRimanenze nel DATA
-  DATA['Q1-2026'].varRimanenze = _magQ1 - (118997+3488+23679+22196);
+  saveStimeQ1();
+  const magEff = (STIME_Q1.magazzino.contab && STIME_Q1.magazzino.reale !== null) ? STIME_Q1.magazzino.reale : _magQ1;
+  DATA['Q1-2026'].varRimanenze = magEff - (118997+3488+23679+22196);
   render();
 }
-// Inizializza varRimanenze con valore caricato
-DATA['Q1-2026'].varRimanenze = _magQ1 - (118997+3488+23679+22196);
+// Inizializza varRimanenze con valore effettivo
+const _magEff0 = (STIME_Q1.magazzino.contab && STIME_Q1.magazzino.reale !== null) ? STIME_Q1.magazzino.reale : _magQ1;
+DATA['Q1-2026'].varRimanenze = _magEff0 - (118997+3488+23679+22196);
 
 
 let currentAnno = '2025';
@@ -792,7 +845,7 @@ function renderKPI() {
       { label: 'Ricavi Q1 2026', val: fmt(c.ricaviTotali), delta: 'proiez. annua ' + fmt(x4(c.ricaviTotali)), neu: true },
       { label: 'Valore Aggiunto', val: fmt(c.valorAggiunto), delta: pct(c.valorAggiunto, c.ricaviTotali).toFixed(1) + '% su ricavi', neu: true },
       { label: 'EBITDA (pre-amm.)', val: fmt(c.ebitda), delta: pct(c.ebitda, c.ricaviTotali).toFixed(1) + '% — senza amm.ti', neg: c.ebitda < 0 },
-      { label: 'Utile Q1 stimato corretto', val: fmt(d.utile + d.varRimanenze + (_intAttiviQ1 - 1709) - 30000 - 9300 - Math.round(DATA[2025].salari/48)), delta: '+var.rim. +int.att. −amm. −TFR −13ª', neg: (d.utile + d.varRimanenze + _intAttiviQ1 - 30000 - 9300 - Math.round(DATA[2025].salari/48)) < 0 },
+      { label: 'Utile Q1 stimato corretto', val: fmt(d.utile + d.varRimanenze + (_intAttiviQ1 - 1709) - 30000 - 9300 - Math.round(DATA[2025].salari/48) - Math.round(d.ricavi*0.015)), delta: '+var.rim. +int.att. −amm. −TFR −13ª −roy.', neg: (d.utile + d.varRimanenze + _intAttiviQ1 - 30000 - 9300 - Math.round(DATA[2025].salari/48) - Math.round(d.ricavi*0.015)) < 0 },
       { label: 'Magazzino stimato Q1', val: '€' + Math.round(_magQ1/1000) + 'k', delta: ((_magQ1-168359)>=0?'+':'')+fmt(_magQ1-168359)+' vs fine 2025', neu: true },
     ];
   } else {
@@ -825,9 +878,12 @@ function renderCE() {
     const d = DATA['Q1-2026'];
     const c = calc(d);
     const R = c.ricaviTotali;
-    const ammStimati = 30000, tfrStimato = 9300;
-    const terzDecima = Math.round(DATA[2025].salari / 12 / 4); // 13ª Q1: ~€11.3k
-    const intAttiviStimati = _intAttiviQ1;
+    const ammStimati    = getStima('ammortamenti', 30000);
+    const tfrStimato    = getStima('tfr', 9300);
+    const terzDecima    = getStima('terzaDecima', Math.round(DATA[2025].salari / 12 / 4));
+    const royaltiesStimate = getStima('royalties', Math.round(DATA['Q1-2026'].ricavi * 0.015));
+    const tfmAmmStimato = getStima('tfmAmm', Math.round(DATA[2025].tfmAmm / 4));
+    const intAttiviStimati = getStima('intAttivi', _intAttiviQ1);
     el.innerHTML = `
       <div style="background:rgba(245,158,11,0.08);border-bottom:1px solid rgba(245,158,11,0.2);padding:10px 20px;font-size:12px;color:var(--orange)">
         ⚠ <strong>Bilancio Q1 2026 — seconda bozza con storno canoni annuali.</strong> Assicurazioni, software, noleggi stornati pro-quota. Interessi attivi €1.709 già contabilizzati. Utile dichiarato: <strong>€54.650</strong>. Le voci in corsivo (ammortamenti ~€30k, TFR ~€9k, royalties, TFM, imposte) non sono ancora contabilizzate.
@@ -877,7 +933,8 @@ function renderCE() {
         { label: '− Ammortamenti stimati Q1 ~€30k (non contab.)', val: -ammStimati, sub: true, est: true },
         { label: '− TFR dipendenti stimato Q1 ~€9k (non contab.)', val: -tfrStimato, sub: true, est: true },
         { label: `− 13ª mensilità stimata Q1 ~€${Math.round(terzDecima/1000)}k (non contab.)`, val: -terzDecima, sub: true, est: true },
-        { margin: true, label: '= UTILE Q1 stimato corretto', val: d.utile + d.varRimanenze + (intAttiviStimati - 1709) - ammStimati - tfrStimato - terzDecima },
+        { label: `− Royalties stimate Q1 1,5% fatturato ~€${Math.round(royaltiesStimate/1000)}k (non contab.)`, val: -royaltiesStimate, sub: true, est: true },
+        { margin: true, label: '= UTILE Q1 stimato corretto', val: d.utile + d.varRimanenze + (intAttiviStimati - 1709) - ammStimati - tfrStimato - terzDecima - royaltiesStimate },
       ].map(r => {
         if (r.sep) return `<div class="ce-row separator"><span class="label">${r.sep}</span></div>`;
         const p = r.val !== 0 ? pct(Math.abs(r.val), R).toFixed(1) : '—';
@@ -1829,21 +1886,89 @@ function loadSimState() {
 }
 
 // ─── MAIN RENDER ─────────────────────────────────────────────────────────────
+function renderStimeQ1() {
+  const panel = document.getElementById('stime-q1-panel');
+  const tbl = document.getElementById('stime-q1-table');
+  if (!panel || !tbl) return;
+
+  if (currentAnno !== 'Q1-2026') { panel.style.display = 'none'; return; }
+  panel.style.display = 'block';
+
+  // Calcola valori stimati dinamici
+  const defaults = {
+    magazzino:    _magQ1,
+    ammortamenti: 30000,
+    tfr:          9300,
+    terzaDecima:  Math.round(DATA[2025].salari / 12 / 4),
+    royalties:    Math.round(DATA['Q1-2026'].ricavi * 0.015),
+    tfmAmm:       Math.round(DATA[2025].tfmAmm / 4),
+    imposte:      null,
+    intAttivi:    _intAttiviQ1,
+  };
+
+  let rows = '';
+  Object.keys(STIME_Q1).forEach(k => {
+    const s = STIME_Q1[k];
+    const stimVal = s.stimato !== null ? s.stimato : (defaults[k] || 0);
+    const effVal  = s.contab && s.reale !== null ? s.reale : stimVal;
+    const badge   = s.contab
+      ? `<span style="background:rgba(62,207,142,0.15);color:#3ecf8e;border-radius:4px;padding:0.1rem 0.4rem;font-size:0.7rem;font-weight:600;">✓ REALE</span>`
+      : `<span style="background:rgba(200,169,110,0.12);color:var(--accent);border-radius:4px;padding:0.1rem 0.4rem;font-size:0.7rem;font-weight:600;">~ STIMA</span>`;
+    rows += `
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:0.5rem 0.4rem;font-size:0.78rem;color:var(--text);">${s.label}</td>
+        <td style="padding:0.5rem 0.4rem;font-size:0.72rem;color:var(--muted);">${s.note}</td>
+        <td style="padding:0.5rem 0.4rem;text-align:right;">
+          <input type="number" value="${stimVal || ''}" placeholder="stimato"
+            style="width:100px;padding:0.25rem 0.4rem;border-radius:5px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:0.78rem;font-family:var(--mono);text-align:right;"
+            oninput="STIME_Q1['${k}'].stimato=parseInt(this.value)||0;if('${k}'==='magazzino')setMagQ1(this.value);else{saveStimeQ1();render();}">
+        </td>
+        <td style="padding:0.5rem 0.4rem;">${badge}</td>
+        <td style="padding:0.5rem 0.4rem;text-align:right;">
+          <input type="number" value="${s.reale !== null ? s.reale : ''}" placeholder="reale"
+            style="width:100px;padding:0.25rem 0.4rem;border-radius:5px;border:1px solid ${s.contab ? 'rgba(62,207,142,0.4)' : 'var(--border)'};background:var(--surface);color:var(--text);font-size:0.78rem;font-family:var(--mono);text-align:right;"
+            oninput="STIME_Q1['${k}'].reale=this.value===''?null:parseInt(this.value);saveStimeQ1();render();">
+        </td>
+        <td style="padding:0.5rem 0.6rem;">
+          <label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer;font-size:0.75rem;color:var(--muted);">
+            <input type="checkbox" ${s.contab ? 'checked' : ''}
+              onchange="STIME_Q1['${k}'].contab=this.checked;saveStimeQ1();if('${k}'==='magazzino')setMagQ1(_magQ1);else render();">
+            Contabilizzato
+          </label>
+        </td>
+      </tr>`;
+  });
+
+  tbl.innerHTML = `
+    <table style="width:100%;border-collapse:collapse;">
+      <thead>
+        <tr style="border-bottom:1px solid var(--border);">
+          <th style="padding:0.4rem;font-size:0.72rem;color:var(--muted);text-align:left;font-weight:500;">Voce</th>
+          <th style="padding:0.4rem;font-size:0.72rem;color:var(--muted);text-align:left;font-weight:500;">Note</th>
+          <th style="padding:0.4rem;font-size:0.72rem;color:var(--muted);text-align:right;font-weight:500;">Valore stimato</th>
+          <th style="padding:0.4rem;font-size:0.72rem;color:var(--muted);text-align:center;font-weight:500;">Stato</th>
+          <th style="padding:0.4rem;font-size:0.72rem;color:var(--muted);text-align:right;font-weight:500;">Valore reale</th>
+          <th style="padding:0.4rem;font-size:0.72rem;color:var(--muted);text-align:left;font-weight:500;"></th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
 function render() {
-  // Mostra/nascondi box magazzino Q1
+  // Pannello stime Q1
+  renderStimeQ1();
+
+  // Box magazzino Q1 (legacy - ora gestito da renderStimeQ1)
   const magBox = document.getElementById('mag-q1-box');
-  const magInput = document.getElementById('mag-q1-input');
-  const magDelta = document.getElementById('mag-q1-delta');
-  if (magBox) {
-    if (currentAnno === 'Q1-2026') {
-      magBox.style.display = 'flex';
-      if (magInput) magInput.value = _magQ1;
-      const varRim = _magQ1 - 168359;
-      if (magDelta) magDelta.textContent = (varRim >= 0 ? '+' : '') + '€' + varRim.toLocaleString('it-IT') + ' vs fine 2025 (€168k)';
-    } else {
-      magBox.style.display = 'none';
-    }
+  if (magBox) magBox.style.display = 'none';
+
+  // Aggiorna varRimanenze con valore corrente
+  if (currentAnno === 'Q1-2026') {
+    const magEff = (STIME_Q1.magazzino.contab && STIME_Q1.magazzino.reale !== null) ? STIME_Q1.magazzino.reale : _magQ1;
+    DATA['Q1-2026'].varRimanenze = magEff - (118997+3488+23679+22196);
   }
+
   renderKPI();
   renderCE();
   renderCostBars();
