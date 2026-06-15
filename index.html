@@ -792,7 +792,7 @@ function renderKPI() {
       { label: 'Ricavi Q1 2026', val: fmt(c.ricaviTotali), delta: 'proiez. annua ' + fmt(x4(c.ricaviTotali)), neu: true },
       { label: 'Valore Aggiunto', val: fmt(c.valorAggiunto), delta: pct(c.valorAggiunto, c.ricaviTotali).toFixed(1) + '% su ricavi', neu: true },
       { label: 'EBITDA (pre-amm.)', val: fmt(c.ebitda), delta: pct(c.ebitda, c.ricaviTotali).toFixed(1) + '% — senza amm.ti', neg: c.ebitda < 0 },
-      { label: 'Utile Q1 stimato corretto', val: fmt(d.utile + d.varRimanenze + (_intAttiviQ1 - 1709) - 30000 - 9300), delta: '+var.rim. +int.att. −amm. −TFR', neg: (d.utile + d.varRimanenze + _intAttiviQ1 - 30000 - 9300) < 0 },
+      { label: 'Utile Q1 stimato corretto', val: fmt(d.utile + d.varRimanenze + (_intAttiviQ1 - 1709) - 30000 - 9300 - Math.round(DATA[2025].salari/48)), delta: '+var.rim. +int.att. −amm. −TFR −13ª', neg: (d.utile + d.varRimanenze + _intAttiviQ1 - 30000 - 9300 - Math.round(DATA[2025].salari/48)) < 0 },
       { label: 'Magazzino stimato Q1', val: '€' + Math.round(_magQ1/1000) + 'k', delta: ((_magQ1-168359)>=0?'+':'')+fmt(_magQ1-168359)+' vs fine 2025', neu: true },
     ];
   } else {
@@ -826,6 +826,7 @@ function renderCE() {
     const c = calc(d);
     const R = c.ricaviTotali;
     const ammStimati = 30000, tfrStimato = 9300;
+    const terzDecima = Math.round(DATA[2025].salari / 12 / 4); // 13ª Q1: ~€11.3k
     const intAttiviStimati = _intAttiviQ1;
     el.innerHTML = `
       <div style="background:rgba(245,158,11,0.08);border-bottom:1px solid rgba(245,158,11,0.2);padding:10px 20px;font-size:12px;color:var(--orange)">
@@ -844,10 +845,11 @@ function renderCE() {
         { sep: 'Costo del Lavoro' },
         { label: '− Costo del lavoro contabilizzato', val: -c.costoPersonale, sub: true },
         { label: '− TFR dipendenti stimato Q1 (non contab.)', val: -tfrStimato, sub: true, est: true },
-        { margin: true, label: '= EBITDA stimato', val: c.ebitda - tfrStimato },
+        { label: `− 13ª mensilità stimata Q1 ~€${Math.round(terzDecima/1000)}k (non contab.)`, val: -terzDecima, sub: true, est: true },
+        { margin: true, label: '= EBITDA stimato', val: c.ebitda - tfrStimato - terzDecima },
         { sep: 'Ammortamenti' },
         { label: '− Ammortamenti stimati Q1 (non contab.)', val: -ammStimati, sub: true, est: true },
-        { margin: true, label: '= EBIT stimato', val: c.ebitda - tfrStimato - ammStimati },
+        { margin: true, label: '= EBIT stimato', val: c.ebitda - tfrStimato - terzDecima - ammStimati },
         { sep: 'Costi di Struttura' },
         { label: '− Affitti', val: -d.affitti, sub: true },
         { label: '− Leasing + noleggi', val: -(d.leasing + d.noleggi), sub: true },
@@ -874,7 +876,8 @@ function renderCE() {
         { margin: true, label: '= UTILE Q1 incl. rettifiche positive', val: d.utile + d.varRimanenze + (intAttiviStimati - 1709) },
         { label: '− Ammortamenti stimati Q1 ~€30k (non contab.)', val: -ammStimati, sub: true, est: true },
         { label: '− TFR dipendenti stimato Q1 ~€9k (non contab.)', val: -tfrStimato, sub: true, est: true },
-        { margin: true, label: '= UTILE Q1 stimato corretto', val: d.utile + d.varRimanenze + (intAttiviStimati - 1709) - ammStimati - tfrStimato },
+        { label: `− 13ª mensilità stimata Q1 ~€${Math.round(terzDecima/1000)}k (non contab.)`, val: -terzDecima, sub: true, est: true },
+        { margin: true, label: '= UTILE Q1 stimato corretto', val: d.utile + d.varRimanenze + (intAttiviStimati - 1709) - ammStimati - tfrStimato - terzDecima },
       ].map(r => {
         if (r.sep) return `<div class="ce-row separator"><span class="label">${r.sep}</span></div>`;
         const p = r.val !== 0 ? pct(Math.abs(r.val), R).toFixed(1) : '—';
