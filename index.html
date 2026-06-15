@@ -1884,6 +1884,24 @@ function loadSimState() {
 }
 
 // ─── MAIN RENDER ─────────────────────────────────────────────────────────────
+function handleStima(el) {
+  const k = el.dataset.key;
+  const type = el.dataset.type;
+  if (!k || !STIME_Q1[k]) return;
+  if (type === 'stimato') {
+    STIME_Q1[k].stimato = el.value === '' ? null : parseInt(el.value) || 0;
+    if (k === 'magazzino') { setMagQ1(el.value); return; }
+  } else if (type === 'reale') {
+    STIME_Q1[k].reale = el.value === '' ? null : parseInt(el.value) || 0;
+    if (k === 'magazzino') { setMagQ1(_magQ1); return; }
+  } else if (type === 'contab') {
+    STIME_Q1[k].contab = el.checked;
+    if (k === 'magazzino') { setMagQ1(_magQ1); return; }
+  }
+  saveStimeQ1();
+  render();
+}
+
 function renderStimeQ1() {
   const panel = document.getElementById('stime-q1-panel');
   const tbl = document.getElementById('stime-q1-table');
@@ -1919,18 +1937,20 @@ function renderStimeQ1() {
         <td style="padding:0.5rem 0.4rem;text-align:right;">
           <input type="number" value="${stimVal || ''}" placeholder="stimato"
             style="width:100px;padding:0.25rem 0.4rem;border-radius:5px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:0.78rem;font-family:var(--mono);text-align:right;"
-            oninput="STIME_Q1['${k}'].stimato=parseInt(this.value)||0;if('${k}'==='magazzino')setMagQ1(this.value);else{saveStimeQ1();render();}">
-        </td>
+            data-key="${k}" data-type="stimato"
+            oninput="handleStima(this)">\n        </td>
         <td style="padding:0.5rem 0.4rem;">${badge}</td>
         <td style="padding:0.5rem 0.4rem;text-align:right;">
           <input type="number" value="${s.reale !== null ? s.reale : ''}" placeholder="reale"
             style="width:100px;padding:0.25rem 0.4rem;border-radius:5px;border:1px solid ${s.contab ? 'rgba(62,207,142,0.4)' : 'var(--border)'};background:var(--surface);color:var(--text);font-size:0.78rem;font-family:var(--mono);text-align:right;"
-            oninput="STIME_Q1['${k}'].reale=this.value===''?null:parseInt(this.value);saveStimeQ1();render();">
+            data-key="${k}" data-type="reale"
+            oninput="handleStima(this)">
         </td>
         <td style="padding:0.5rem 0.6rem;">
           <label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer;font-size:0.75rem;color:var(--muted);">
             <input type="checkbox" ${s.contab ? 'checked' : ''}
-              onchange="STIME_Q1['${k}'].contab=this.checked;saveStimeQ1();if('${k}'==='magazzino')setMagQ1(_magQ1);else render();">
+              data-key="${k}" data-type="contab"
+              onchange="handleStima(this)">
             Contabilizzato
           </label>
         </td>
