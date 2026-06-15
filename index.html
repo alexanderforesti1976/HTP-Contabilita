@@ -303,6 +303,15 @@
 
 <div class="container">
 
+  <!-- MAGAZZINO Q1 2026 (visibile solo per Q1 2026) -->
+  <div id="mag-q1-box" style="display:none;background:rgba(200,169,110,0.08);border:1px solid rgba(200,169,110,0.2);border-radius:10px;padding:0.75rem 1.2rem;margin-bottom:1rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+    <span style="font-size:0.82rem;color:var(--muted);">📦 Magazzino stimato Q1 2026</span>
+    <input type="number" id="mag-q1-input" value="200000" step="1000"
+      style="width:130px;padding:0.35rem 0.6rem;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:0.85rem;font-family:var(--mono);"
+      oninput="setMagQ1(this.value)">
+    <span style="font-size:0.75rem;color:var(--muted);" id="mag-q1-delta"></span>
+  </div>
+
   <!-- KPI STRIP -->
   <div class="kpi-strip" id="kpi-strip"></div>
 
@@ -568,7 +577,24 @@ const DATA = {
   }
 };
 
-// ─── STATO ───────────────────────────────────────────────────────────────────
+// ─── MAGAZZINO Q1 2026 ───────────────────────────────────────────────────────
+let _magQ1 = 200000; // default €200k
+try {
+  const saved = localStorage.getItem('htp_cont_magQ1');
+  if (saved) _magQ1 = parseInt(saved) || 200000;
+} catch(e) {}
+
+function setMagQ1(val) {
+  _magQ1 = parseInt(val) || 200000;
+  try { localStorage.setItem('htp_cont_magQ1', _magQ1); } catch(e) {}
+  // aggiorna varRimanenze nel DATA
+  DATA['Q1-2026'].varRimanenze = _magQ1 - (118997+3488+23679+22196);
+  render();
+}
+// Inizializza varRimanenze con valore caricato
+DATA['Q1-2026'].varRimanenze = _magQ1 - (118997+3488+23679+22196);
+
+
 let currentAnno = '2025';
 let simParams = {};
 
@@ -766,8 +792,8 @@ function renderKPI() {
       { label: 'Ricavi Q1 2026', val: fmt(c.ricaviTotali), delta: 'proiez. annua ' + fmt(x4(c.ricaviTotali)), neu: true },
       { label: 'Valore Aggiunto', val: fmt(c.valorAggiunto), delta: pct(c.valorAggiunto, c.ricaviTotali).toFixed(1) + '% su ricavi', neu: true },
       { label: 'EBITDA (pre-amm.)', val: fmt(c.ebitda), delta: pct(c.ebitda, c.ricaviTotali).toFixed(1) + '% — senza amm.ti', neg: c.ebitda < 0 },
-      { label: 'Utile Q1 stimato corretto', val: fmt(d.utile + 31640 + (_intAttiviQ1 - 1709) - 30000 - 9300), delta: '+var.rim. +int.att. −amm. −TFR', neg: (d.utile + 31640 + _intAttiviQ1 - 30000 - 9300) < 0 },
-      { label: 'Magazzino stimato', val: '€ 200k', delta: '+€32k vs fine 2025', neu: true },
+      { label: 'Utile Q1 stimato corretto', val: fmt(d.utile + d.varRimanenze + (_intAttiviQ1 - 1709) - 30000 - 9300), delta: '+var.rim. +int.att. −amm. −TFR', neg: (d.utile + d.varRimanenze + _intAttiviQ1 - 30000 - 9300) < 0 },
+      { label: 'Magazzino stimato Q1', val: '€' + Math.round(_magQ1/1000) + 'k', delta: ((_magQ1-168359)>=0?'+':'')+fmt(_magQ1-168359)+' vs fine 2025', neu: true },
     ];
   } else {
     const d = DATA[currentAnno];
@@ -812,7 +838,7 @@ function renderCE() {
         { margin: true, label: 'TOTALE RICAVI', val: R },
         { sep: 'Costi Variabili' },
         { label: '− Costo materie prime acquistate', val: -(d.mpAcquisti + d.materialiConsumo + d.imballi + d.pfAcquistati), sub: true },
-        { label: '+ Variazione rimanenze (€168k→€200k stimati)', val: 31640, sub: true, pos: true },
+        { label: `+ Variazione rimanenze (€168k→€${Math.round(_magQ1/1000)}k stimati)`, val: d.varRimanenze, sub: true, pos: d.varRimanenze>=0 },
         { label: '− Lavorazioni conto terzi', val: -d.lavCTerzi, sub: true },
         { margin: true, label: '= VALORE AGGIUNTO', val: c.valorAggiunto },
         { sep: 'Costo del Lavoro' },
@@ -843,12 +869,12 @@ function renderCE() {
         { sep: 'Oneri Finanziari' },
         { label: '− Interessi passivi', val: -d.interessi, sub: true },
         { margin: true, label: '= UTILE Q1 (da bilancio, incl. int.attivi €1.709, pre-amm.ti, senza var.rim.)', val: d.utile },
-        { label: '+ Variazione rimanenze +€31.640 (non contab. nel trimestrale)', val: 31640, sub: true, est: true, pos: true },
+        { label: `+ Variazione rimanenze +€${d.varRimanenze.toLocaleString('it-IT')} (non contab. nel trimestrale)`, val: d.varRimanenze, sub: true, est: true, pos: d.varRimanenze>=0 },
         { label: `+ Proventi finanziari residui stimati ~€${Math.round((_intAttiviQ1-1709)/1000)}k (non contab.)`, val: _intAttiviQ1 - 1709, sub: true, est: true, pos: true },
-        { margin: true, label: '= UTILE Q1 incl. rettifiche positive', val: d.utile + 31640 + (intAttiviStimati - 1709) },
+        { margin: true, label: '= UTILE Q1 incl. rettifiche positive', val: d.utile + d.varRimanenze + (intAttiviStimati - 1709) },
         { label: '− Ammortamenti stimati Q1 ~€30k (non contab.)', val: -ammStimati, sub: true, est: true },
         { label: '− TFR dipendenti stimato Q1 ~€9k (non contab.)', val: -tfrStimato, sub: true, est: true },
-        { margin: true, label: '= UTILE Q1 stimato corretto', val: d.utile + 31640 + (intAttiviStimati - 1709) - ammStimati - tfrStimato },
+        { margin: true, label: '= UTILE Q1 stimato corretto', val: d.utile + d.varRimanenze + (intAttiviStimati - 1709) - ammStimati - tfrStimato },
       ].map(r => {
         if (r.sep) return `<div class="ce-row separator"><span class="label">${r.sep}</span></div>`;
         const p = r.val !== 0 ? pct(Math.abs(r.val), R).toFixed(1) : '—';
@@ -1540,7 +1566,7 @@ function renderClienti() {
             ['Crediti clienti nazionali', 347856, ''],
             ['Crediti clienti esteri', 109762, ''],
             ['CE dopo incasso', 134063, ''],
-            ['Magazzino stimato', 200000, 'var(--orange)'],
+            ['Magazzino stimato', _magQ1, 'var(--orange)'],
             ['Immobilizzazioni nette', 463000, ''],
             ['Altri crediti e ratei', 195000, ''],
           ].map(([k,v,c]) => `<div style="padding:8px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between">
@@ -1801,6 +1827,20 @@ function loadSimState() {
 
 // ─── MAIN RENDER ─────────────────────────────────────────────────────────────
 function render() {
+  // Mostra/nascondi box magazzino Q1
+  const magBox = document.getElementById('mag-q1-box');
+  const magInput = document.getElementById('mag-q1-input');
+  const magDelta = document.getElementById('mag-q1-delta');
+  if (magBox) {
+    if (currentAnno === 'Q1-2026') {
+      magBox.style.display = 'flex';
+      if (magInput) magInput.value = _magQ1;
+      const varRim = _magQ1 - 168359;
+      if (magDelta) magDelta.textContent = (varRim >= 0 ? '+' : '') + '€' + varRim.toLocaleString('it-IT') + ' vs fine 2025 (€168k)';
+    } else {
+      magBox.style.display = 'none';
+    }
+  }
   renderKPI();
   renderCE();
   renderCostBars();
