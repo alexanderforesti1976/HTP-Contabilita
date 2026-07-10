@@ -297,26 +297,16 @@
     <button class="anno-btn active" onclick="setAnno('2025', this)">2025</button>
     <button class="anno-btn" onclick="setAnno('2024', this)">2024</button>
     <button class="anno-btn" onclick="setAnno('delta', this)">Δ 24→25</button>
-    <button class="anno-btn" onclick="setAnno('Q1-2026', this)">Q1 2026</button>
+    <button class="anno-btn" onclick="setAnno('H1-2026', this)">H1 2026</button>
   </div>
   <span id="cf-sync-badge" title="Sincronizzazione dati ordini/backlog dal tool Cash Flow" style="font-size:11px;padding:4px 10px;border-radius:12px;background:rgba(245,158,11,0.12);color:var(--orange);border:1px solid rgba(245,158,11,0.25);white-space:nowrap">⏳ Cash Flow…</span>
 </div>
 
 <div class="container">
 
-  <!-- PANNELLO STIME Q1 2026 (visibile solo per Q1 2026) -->
-  <div id="stime-q1-panel" style="display:none;margin-bottom:1.2rem;">
-    <div style="background:rgba(200,169,110,0.08);border:1px solid rgba(200,169,110,0.25);border-radius:12px;padding:1rem 1.2rem;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
-        <span style="font-size:0.8rem;font-weight:600;color:var(--accent);letter-spacing:0.06em;text-transform:uppercase;">⚠ Voci stimate Q1 2026</span>
-        <button onclick="resetStimeQ1()" style="font-size:0.72rem;padding:0.25rem 0.7rem;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;">↺ Reset valori default</button>
-      </div>
-      <div id="stime-q1-table"></div>
-    </div>
-  </div>
-
   <!-- KPI STRIP -->
   <div class="kpi-strip" id="kpi-strip"></div>
+
 
   <!-- MAIN GRID -->
   <div class="main-grid">
@@ -386,7 +376,7 @@
           <button class="anno-btn active" id="cli-btn-2024" onclick="setCliAnno('2024',this)" style="font-size:12px;padding:4px 12px">2024</button>
           <button class="anno-btn" id="cli-btn-2025" onclick="setCliAnno('2025',this)" style="font-size:12px;padding:4px 12px">2025</button>
           <button class="anno-btn" id="cli-btn-2026" onclick="setCliAnno('2026',this)" style="font-size:12px;padding:4px 12px">2026 YTD</button>
-          <button class="anno-btn" id="cli-btn-Q1" onclick="setCliAnno('Q1-2026',this)" style="font-size:12px;padding:4px 12px">Q1 SP</button>
+          <button class="anno-btn" id="cli-btn-H1" onclick="setCliAnno('H1-2026',this)" style="font-size:12px;padding:4px 12px">H1 SP</button>
         </div>
       </div>
       <div id="clienti-body"></div>
@@ -526,129 +516,21 @@ const DATA = {
     oreProduzione:  15 * 1700,
     nPresse:        6,
   },
-  // Q1 2026: dati reali da bilancio 31/03/2026
-  // NOTA: ammortamenti e TFR dipendenti non contabilizzati nel trimestrale (vengono a fine anno)
-  // Magazzino stimato €200k (non presente nel bilancio trimestrale)
-  // Q1 2026: bilancio 31/03/2026 SECONDA BOZZA con storno canoni annuali
-  // Interessi attivi €1.709 già contabilizzati nel CE
-  // Magazzino stimato €200k (non nel bilancio trimestrale)
-  'Q1-2026': {
-    ricavi:         561123,
-    ricaviDiversi:  228,
-    ricaviStampi:   7300,
-    varRimanenze:   200000 - (118997+3488+23679+22196), // +31.640 accumulo scorte Q1
-    mpAcquisti:     121383,
-    materialiConsumo: 775+3211,
-    imballi:        1739,
-    pfAcquistati:   17553,
-    lavCTerzi:      28852,
-    salari:         101652,
-    interinale:     0,
-    contributi:     31303+10393,
-    tfr:            1712,
-    welfare:        4778+882,
-    energia:        23699+1501+212,
-    affitti:        27788,
-    leasing:        863,
-    noleggi:        5400+1755+4867,  // noleggi auto stornati pro-quota
-    ammMacchinari:  0,
-    ammStampi:      0,
-    ammAltri:       0,
-    ammAuto:        0,
-    provvigioni:    23794+1116,
-    pubblicita:     32063,
-    svariComm:      882,
-    royalties:      0,
-    consulAmm:      399,
-    consulTec:      3150,
-    compensoAmm:    9710+2268,
-    tfmAmm:         0,
-    revisore:       0,
-    speseBancarie:  1505+217,
-    manutenzioni:   3880+3358+100+85+3586,  // software e manut. stornati pro-quota
-    altriGA:        905+239+369+360+260+17+1389+2059+1550+876+150+711+485+342+37+965+4892+118+2031,
-    assicurazioni:  4697+1521,  // assicurazioni stornate pro-quota
-    interessi:      5719+27+53,
-    intAttiviContab: 1709,  // interessi attivi già nel CE — non stimare di nuovo
-    ires:           0,
-    irap:           0,
-    utile:          54650,
-    oreProduzione:  15 * 1700,
-    nPresse:        6,
-    _trimestrale:   true,
-    _mesiCoperti:   3,
-  }
 };
 
-// ─── STIME Q1 2026 ───────────────────────────────────────────────────────────
-// Per ogni voce stimata: valore stimato, flag se già contabilizzato, valore reale se disponibile
-// Quando 'contab' = true, usa 'reale' nel calcolo invece della stima
-// Aggiornare qui quando arriva bilancio intermedio con dati reali
-const STIME_Q1 = {
-  magazzino:   { label: 'Magazzino (var. rimanenze)',     stimato: 200000,  contab: false, reale: null,  note: 'Stima scorte fine Q1' },
-  ammortamenti:{ label: 'Ammortamenti',                   stimato: 30000,   contab: false, reale: null,  note: '~€30k/trimestre su base 2025' },
-  tfr:         { label: 'TFR dipendenti',                 stimato: 9300,    contab: false, reale: null,  note: '~€37k annui / 4' },
-  terzaDecima: { label: '13ª mensilità',                  stimato: null,    contab: false, reale: null,  note: '1/12 salari annui × 3 mesi' },
-  royalties:   { label: 'Royalties (1,5% fatturato)',     stimato: null,    contab: false, reale: null,  note: '1% + 0,5% su ricavi Q1' },
-  tfmAmm:      { label: 'TFM Amministratore',             stimato: null,    contab: false, reale: null,  note: 'Accantonamento trimestrale' },
-  imposte:     { label: 'Imposte (IRES + IRAP)',          stimato: null,    contab: false, reale: null,  note: 'Stima su utile corretto' },
-  intAttivi:   { label: 'Proventi finanziari residui',    stimato: null,    contab: false, reale: null,  note: 'Titoli + c/c Q1 pro-rata 2025' },
+// ─── H1 2026 — costruito dinamicamente dal modello Cash Flow (vedi loadCashFlowSync) ──
+// Placeholder iniziale a zero, finché la sincronizzazione con params.json non completa.
+DATA['H1-2026'] = {
+  ricavi:0, ricaviDiversi:0, ricaviStampi:0, varRimanenze:0,
+  mpAcquisti:0, materialiConsumo:0, imballi:0, pfAcquistati:0, lavCTerzi:0,
+  salari:0, interinale:0, contributi:0, tfr:0, welfare:0,
+  energia:0, affitti:0, leasing:0, noleggi:0,
+  ammMacchinari:0, ammStampi:0, ammAltri:0, ammAuto:0,
+  provvigioni:0, pubblicita:0, svariComm:0, royalties:0,
+  consulAmm:0, consulTec:0, compensoAmm:0, tfmAmm:0, revisore:0, speseBancarie:0, manutenzioni:0, altriGA:0,
+  interessi:0, ricaviTitoli:0, intAttiviCC:0, dividendi:0,
+  ires:0, irap:0, utile:0, oreProduzione:0, nPresse:6,
 };
-
-// Carica stato STIME_Q1 da localStorage
-try {
-  const saved = localStorage.getItem('htp_cont_stime_q1');
-  if (saved) {
-    const parsed = JSON.parse(saved);
-    Object.keys(parsed).forEach(k => {
-      if (STIME_Q1[k]) {
-        STIME_Q1[k].contab = parsed[k].contab;
-        STIME_Q1[k].reale  = parsed[k].reale;
-        if (parsed[k].stimato !== undefined && parsed[k].stimato !== null) STIME_Q1[k].stimato = parsed[k].stimato;
-      }
-    });
-  }
-} catch(e) {}
-
-function saveStimeQ1() {
-  try {
-    const toSave = {};
-    Object.keys(STIME_Q1).forEach(k => {
-      toSave[k] = { contab: STIME_Q1[k].contab, reale: STIME_Q1[k].reale, stimato: STIME_Q1[k].stimato };
-    });
-    localStorage.setItem('htp_cont_stime_q1', JSON.stringify(toSave));
-    localStorage.setItem('htp_cont_last_modified', new Date().toISOString());
-  } catch(e) {}
-}
-
-// Restituisce il valore effettivo di una stima (reale se contabilizzato, stimato altrimenti)
-function getStima(key, fallback) {
-  const s = STIME_Q1[key];
-  if (!s) return fallback || 0;
-  if (s.contab && s.reale !== null) return s.reale;
-  return s.stimato !== null ? s.stimato : (fallback || 0);
-}
-
-
-let _magQ1 = STIME_Q1.magazzino.stimato || 200000;
-try {
-  const saved = localStorage.getItem('htp_cont_magQ1');
-  if (saved && !STIME_Q1.magazzino.stimato) _magQ1 = parseInt(saved) || 200000;
-} catch(e) {}
-
-function setMagQ1(val) {
-  _magQ1 = parseInt(val) || 200000;
-  STIME_Q1.magazzino.stimato = _magQ1;
-  try { localStorage.setItem('htp_cont_magQ1', _magQ1); } catch(e) {}
-  saveStimeQ1();
-  const magEff = (STIME_Q1.magazzino.contab && STIME_Q1.magazzino.reale !== null) ? STIME_Q1.magazzino.reale : _magQ1;
-  DATA['Q1-2026'].varRimanenze = magEff - (118997+3488+23679+22196);
-  render();
-}
-// Inizializza varRimanenze con valore effettivo
-const _magEff0 = (STIME_Q1.magazzino.contab && STIME_Q1.magazzino.reale !== null) ? STIME_Q1.magazzino.reale : _magQ1;
-DATA['Q1-2026'].varRimanenze = _magEff0 - (118997+3488+23679+22196);
-
 
 let currentAnno = '2025';
 let simParams = {};
@@ -657,7 +539,6 @@ function setAnno(anno, btn) {
   currentAnno = anno;
   document.querySelectorAll('.anno-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  renderStimeQ1();
   render();
 }
 
@@ -745,7 +626,7 @@ function renderPersonaleParams() {
   const el = document.getElementById('personale-params-grid');
   if (!el) return;
 
-  const annoRef = currentAnno === 'delta' || currentAnno === 'Q1-2026' ? '2025' : currentAnno;
+  const annoRef = currentAnno === 'delta' ? '2025' : currentAnno;
   const d = DATA[annoRef];
   const c = calc(d);
   const totBilancio = c.costoPersonale;
@@ -819,15 +700,6 @@ function refreshOrg() {
   renderPersonale();
 }
 
-// Interessi attivi stimati Q1 2026
-// Interessi attivi Q1 2026 stimati su base dati reali 2025:
-// Ricavi titoli 2025: €21.773 / 4 = €5.443
-// Interessi attivi c/c 2025: €14.124 / 4 = €3.531
-// Totale stimato Q1: €8.974 — di cui €1.709 già contabilizzati → residuo €7.265
-const _ricaviTitoliQ1 = Math.round(DATA[2025].ricaviTitoli / 4); // €5.443
-const _intAttiviCCQ1  = Math.round(DATA[2025].intAttiviCC / 4);  // €3.531
-const _intAttiviQ1 = _ricaviTitoliQ1 + _intAttiviCCQ1;           // €8.974
-
 function renderKPI() {
   const el = document.getElementById('kpi-strip');
   let kpis = [];
@@ -840,16 +712,16 @@ function renderKPI() {
       { label: 'EBIT', val: fmt(c25.ebit), delta: pct(c25.ebit - c24.ebit, c24.ebit) + '%', neg: c25.ebit < c24.ebit },
       { label: 'Utile Netto', val: fmt(DATA[2025].utile), delta: pct(DATA[2025].utile - DATA[2024].utile, DATA[2024].utile) + '%', neg: DATA[2025].utile < DATA[2024].utile },
     ];
-  } else if (currentAnno === 'Q1-2026') {
-    const d = DATA['Q1-2026'];
+  } else if (currentAnno === 'H1-2026') {
+    const d = DATA['H1-2026'];
     const c = calc(d);
-    const x4 = v => v * 4; // annualizzazione
+    const x2 = v => v * 2; // annualizzazione da semestre
     kpis = [
-      { label: 'Ricavi Q1 2026', val: fmt(c.ricaviTotali), delta: 'proiez. annua ' + fmt(x4(c.ricaviTotali)), neu: true },
+      { label: 'Ricavi H1 2026', val: fmt(c.ricaviTotali), delta: (CF_SYNC.ok ? 'proiez. annua ' + fmt(x2(c.ricaviTotali)) : 'sincronizzazione…'), neu: true },
       { label: 'Valore Aggiunto', val: fmt(c.valorAggiunto), delta: pct(c.valorAggiunto, c.ricaviTotali).toFixed(1) + '% su ricavi', neu: true },
-      { label: 'EBITDA (pre-amm.)', val: fmt(c.ebitda), delta: pct(c.ebitda, c.ricaviTotali).toFixed(1) + '% — senza amm.ti', neg: c.ebitda < 0 },
-      { label: 'Utile Q1 stimato corretto', val: fmt(d.utile + d.varRimanenze + (_intAttiviQ1 - 1709) - 30000 - 9300 - Math.round(DATA[2025].salari/48) - Math.round(d.ricavi*0.015)), delta: '+var.rim. +int.att. −amm. −TFR −13ª −roy.', neg: (d.utile + d.varRimanenze + _intAttiviQ1 - 30000 - 9300 - Math.round(DATA[2025].salari/48) - Math.round(d.ricavi*0.015)) < 0 },
-      { label: 'Magazzino stimato Q1', val: '€' + Math.round(_magQ1/1000) + 'k', delta: ((_magQ1-168359)>=0?'+':'')+fmt(_magQ1-168359)+' vs fine 2025', neu: true },
+      { label: 'EBITDA', val: fmt(c.ebitda), delta: pct(c.ebitda, c.ricaviTotali).toFixed(1) + '% margin', neg: c.ebitda < 0 },
+      { label: 'EBT', val: fmt(c.ebt), delta: pct(c.ebt, c.ricaviTotali).toFixed(1) + '% margin', neg: c.ebt < 0 },
+      { label: 'Utile Netto stimato', val: fmt(d.utile), delta: pct(d.utile, c.ricaviTotali).toFixed(1) + '% margin', neg: d.utile < 0 },
     ];
   } else {
     const d = DATA[currentAnno];
@@ -875,83 +747,6 @@ function renderKPI() {
 function renderCE() {
   const el = document.getElementById('ce-body');
   const badge = document.getElementById('ce-anno-badge');
-
-  if (currentAnno === 'Q1-2026') {
-    badge.textContent = 'Q1 2026 (gen-mar) — 3 mesi';
-    const d = DATA['Q1-2026'];
-    const c = calc(d);
-    const R = c.ricaviTotali;
-    const ammStimati    = getStima('ammortamenti', 30000);
-    const tfrStimato    = getStima('tfr', 9300);
-    const terzDecima    = getStima('terzaDecima', Math.round(DATA[2025].salari / 12 / 4));
-    const royaltiesStimate = getStima('royalties', Math.round(DATA['Q1-2026'].ricavi * 0.015));
-    const tfmAmmStimato = getStima('tfmAmm', Math.round(DATA[2025].tfmAmm / 4));
-    const intAttiviStimati = getStima('intAttivi', _intAttiviQ1);
-    el.innerHTML = `
-      <div style="background:rgba(245,158,11,0.08);border-bottom:1px solid rgba(245,158,11,0.2);padding:10px 20px;font-size:12px;color:var(--orange)">
-        ⚠ <strong>Bilancio Q1 2026 — seconda bozza con storno canoni annuali.</strong> Assicurazioni, software, noleggi stornati pro-quota. Interessi attivi €1.709 già contabilizzati. Utile dichiarato: <strong>€54.650</strong>. Le voci in corsivo (ammortamenti ~€30k, TFR ~€9k, royalties, TFM, imposte) non sono ancora contabilizzate.
-      </div>` +
-      [
-        { sep: 'Ricavi' },
-        { label: 'Ricavi da produzione', val: d.ricavi, sub: true },
-        { label: 'Ricavi diversi + vendita stampi', val: d.ricaviDiversi + d.ricaviStampi, sub: true },
-        { margin: true, label: 'TOTALE RICAVI', val: R },
-        { sep: 'Costi Variabili' },
-        { label: '− Costo materie prime acquistate', val: -(d.mpAcquisti + d.materialiConsumo + d.imballi + d.pfAcquistati), sub: true },
-        { label: `+ Variazione rimanenze (€168k→€${Math.round(_magQ1/1000)}k stimati)`, val: d.varRimanenze, sub: true, pos: d.varRimanenze>=0 },
-        { label: '− Lavorazioni conto terzi', val: -d.lavCTerzi, sub: true },
-        { margin: true, label: '= VALORE AGGIUNTO', val: c.valorAggiunto },
-        { sep: 'Costo del Lavoro' },
-        { label: '− Costo del lavoro contabilizzato', val: -c.costoPersonale, sub: true },
-        { margin: true, label: '= EBITDA (contabilizzato)', val: c.ebitda },
-        { sep: 'Ammortamenti' },
-        { label: '− Ammortamenti stimati Q1 (non contab.)', val: -ammStimati, sub: true, est: true },
-        { margin: true, label: '= EBIT stimato', val: c.ebitda - ammStimati },
-        { sep: 'Costi di Struttura' },
-        { label: '− Affitti', val: -d.affitti, sub: true },
-        { label: '− Leasing + noleggi', val: -(d.leasing + d.noleggi), sub: true },
-        { label: '− Energia', val: -d.energia, sub: true },
-        { label: '− Manutenzioni', val: -d.manutenzioni, sub: true },
-        { sep: 'Costi Commerciali' },
-        { label: '− Provvigioni + Enasarco', val: -d.provvigioni, sub: true },
-        { label: '− Pubblicità e fiere', val: -d.pubblicita, sub: true },
-        { label: `− Royalties (non ancora contab. — v. riconciliazione)`, val: 0, sub: true, est: true },
-        { sep: 'Costi G&A' },
-        { label: '− Consulenze amm. + tecniche', val: -(d.consulAmm + d.consulTec), sub: true },
-        { label: '− Compenso + contrib. amm.re', val: -d.compensoAmm, sub: true },
-        { label: `− TFM amm.re (non ancora contab. — v. riconciliazione)`, val: 0, sub: true, est: true },
-        { label: '− Altri G&A + spese bancarie', val: -(d.speseBancarie + d.altriGA), sub: true },
-        { sep: 'Proventi Finanziari' },
-        { label: '+ Interessi attivi contabilizzati Q1', val: 1709, sub: true },
-        { label: '+ Ricavi titoli stimati Q1 (non ancora contab.)', val: _ricaviTitoliQ1, sub: true, est: true, pos: true },
-        { label: `+ Interessi attivi c/c residui stimati Q1 (non ancora contab.)`, val: _intAttiviCCQ1 - 1709, sub: true, est: true, pos: true },
-        { sep: 'Oneri Finanziari' },
-        { label: '− Interessi passivi', val: -d.interessi, sub: true },
-        { margin: true, label: '= UTILE Q1 (da bilancio, incl. int.attivi €1.709, pre-amm.ti, senza var.rim.)', val: d.utile },
-        { label: `+ Variazione rimanenze +€${d.varRimanenze.toLocaleString('it-IT')} (non contab. nel trimestrale)`, val: d.varRimanenze, sub: true, est: true, pos: d.varRimanenze>=0 },
-        { label: `+ Proventi finanziari residui stimati ~€${Math.round((_intAttiviQ1-1709)/1000)}k (non contab.)`, val: _intAttiviQ1 - 1709, sub: true, est: true, pos: true },
-        { margin: true, label: '= UTILE Q1 incl. rettifiche positive', val: d.utile + d.varRimanenze + (intAttiviStimati - 1709) },
-        { label: '− TFR dipendenti stimato Q1 ~€9k (non contab.)', val: -tfrStimato, sub: true, est: true },
-        { label: `− 13ª mensilità stimata Q1 ~€${Math.round(terzDecima/1000)}k (non contab.)`, val: -terzDecima, sub: true, est: true },
-        { label: `− Royalties stimate Q1 1,5% fatturato ~€${Math.round(royaltiesStimate/1000)}k (non contab.)`, val: -royaltiesStimate, sub: true, est: true },
-        { label: `− TFM amm.re ~20% utile ante TFM ~€${Math.round((d.utile + d.varRimanenze + (intAttiviStimati-1709) - tfrStimato - terzDecima - royaltiesStimate)*0.20/1000)}k (non contab.)`, val: -Math.round((d.utile + d.varRimanenze + (intAttiviStimati-1709) - tfrStimato - terzDecima - royaltiesStimate) * 0.20), sub: true, est: true },
-        { margin: true, label: '= UTILE Q1 stimato corretto (ante imposte)', val: Math.round((d.utile + d.varRimanenze + (intAttiviStimati-1709) - tfrStimato - terzDecima - royaltiesStimate) * 0.80) },
-      ].map(r => {
-        if (r.sep) return `<div class="ce-row separator"><span class="label">${r.sep}</span></div>`;
-        const p = r.val !== 0 ? pct(Math.abs(r.val), R).toFixed(1) : '—';
-        const isPos = r.val >= 0;
-        const bc = isPos ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)';
-        const bt = isPos ? 'var(--green)' : 'var(--red)';
-        return `<div class="ce-row ${r.margin ? 'margin ' + (r.val >= 0 ? 'positive' : 'negative') : ''}" style="${r.est ? 'opacity:0.65;' : ''}">
-          <span class="label" style="${r.sub ? 'padding-left:12px;' : ''}${r.est ? 'font-style:italic;color:var(--orange)' : ''}">${r.label}</span>
-          <div style="display:flex;gap:12px;align-items:center">
-            <span class="pct-badge" style="background:${bc};color:${bt}">${p}%</span>
-            <span class="val">${r.val === 0 && r.est ? '<span style="font-size:11px;color:var(--text3)">(a fine anno)</span>' : fmt(r.val)}</span>
-          </div>
-        </div>`;
-      }).join('');
-    return;
-  }
 
   if (currentAnno === 'delta') {
     badge.textContent = 'Confronto 2024 → 2025';
@@ -1006,10 +801,20 @@ function renderCE() {
     return;
   }
 
-  badge.textContent = 'Anno ' + currentAnno;
+  if (currentAnno === 'H1-2026') {
+    badge.textContent = CF_SYNC.ok ? '1° Semestre 2026 (gen-giu) — stima da modello Cash Flow' : '1° Semestre 2026 — sincronizzazione in corso…';
+  } else {
+    badge.textContent = 'Anno ' + currentAnno;
+  }
   const d = DATA[currentAnno];
   const c = calc(d);
   const R = c.ricaviTotali;
+
+  const banner = currentAnno === 'H1-2026'
+    ? `<div style="background:rgba(79,110,247,0.08);border-bottom:1px solid rgba(79,110,247,0.2);padding:10px 20px;font-size:12px;color:var(--accent)">
+        🔗 <strong>Stima H1 2026 dal modello Cash Flow</strong> — non è un bilancio contabile: ricavi = quota H1 implicita nel target annuo (€${(CF_SYNC.rev26||0).toLocaleString('it-IT')}k) + ordini confermati; costi = % e assunzioni impostate nel Cash Flow (materie prime, lavoro, energia, ecc.), non voci di mastrino. ${CF_SYNC.updated ? 'Aggiornato al ' + CF_SYNC.updated + '.' : ''}
+      </div>`
+    : '';
 
   const rows = [
     { sep: 'Ricavi' },
@@ -1054,7 +859,7 @@ function renderCE() {
     { margin: true, label: '= UTILE NETTO', val: d.utile },
   ];
 
-  el.innerHTML = rows.map(r => {
+  el.innerHTML = banner + rows.map(r => {
     if (r.sep) return `<div class="ce-row separator"><span class="label">${r.sep}</span></div>`;
     const p = pct(Math.abs(r.val), R).toFixed(1);
     const isPos = r.val >= 0;
@@ -1075,11 +880,8 @@ function renderCostBars() {
   const el = document.getElementById('cost-bars');
   const lbl = document.getElementById('tot-costi-label');
 
-  if (currentAnno === 'delta' || currentAnno === 'Q1-2026') {
-    const msg = currentAnno === 'Q1-2026'
-      ? 'I dati Q1 2026 sono visualizzati nel Conto Economico. La struttura dei costi per natura è disponibile per gli anni completi 2024 e 2025.'
-      : 'Seleziona un anno per vedere la struttura dei costi.';
-    el.innerHTML = `<div style="padding:20px;color:var(--text2);font-size:13px">${msg}</div>`;
+  if (currentAnno === 'delta') {
+    el.innerHTML = `<div style="padding:20px;color:var(--text2);font-size:13px">Seleziona un anno per vedere la struttura dei costi.</div>`;
     return;
   }
 
@@ -1114,7 +916,7 @@ function renderCostBars() {
 // ─── RENDER CENTRI DI COSTO ────────────────────────────────────────────────────
 function renderCentri() {
   const el = document.getElementById('centri-costo');
-  if (currentAnno === 'delta' || currentAnno === 'Q1-2026') { el.innerHTML = '<div style="padding:20px;color:var(--text2);font-size:13px">Disponibile per anni completi (2024, 2025).</div>'; return; }
+  if (currentAnno === 'delta') { el.innerHTML = '<div style="padding:20px;color:var(--text2);font-size:13px">Disponibile per anni completi o H1 2026.</div>'; return; }
   const d = DATA[currentAnno];
   const c = calc(d);
 
@@ -1212,7 +1014,7 @@ function renderPersonale() {
     return;
   }
 
-  const annoRef = currentAnno === 'Q1-2026' ? '2025' : currentAnno;
+  const annoRef = currentAnno;
   const d = DATA[annoRef];
   const c = calc(d);
   lbl.textContent = fmt(c.costoPersonale);
@@ -1274,9 +1076,9 @@ function renderPersonale() {
 function renderVariabili() {
   const el = document.getElementById('variabili-table');
   const lbl = document.getElementById('tot-variabili-label');
-  if (currentAnno === 'delta' || currentAnno === 'Q1-2026') {
+  if (currentAnno === 'delta') {
     lbl.textContent = '—';
-    el.innerHTML = '<div style="padding:20px;color:var(--text2);font-size:13px">Disponibile per anni completi (2024, 2025).</div>';
+    el.innerHTML = '<div style="padding:20px;color:var(--text2);font-size:13px">Seleziona un anno per vedere il dettaglio.</div>';
     return;
   }
   const d = DATA[currentAnno];
@@ -1604,8 +1406,69 @@ let currentCliAnno = '2024';
 // Legge ordini confermati (OREV) e backlog per cliente (OBACKLOG) direttamente
 // dal repo HTP-CashFlow, così i dati di fatturato/backlog restano coerenti fra
 // i due strumenti senza doverli aggiornare due volte.
-let CF_SYNC = { loaded:false, ok:false, OREV:null, OBACKLOG:null, rev26:null, growth27:null, updated:null, byClient:{}, tot2026:0, tot2027:0 };
+let CF_SYNC = { loaded:false, ok:false, OREV:null, OBACKLOG:null, P:null, rev26:null, growth27:null, updated:null, byClient:{}, tot2026:0, tot2027:0 };
 
+// ─── Stagionalità e mesi — replica esatta di quanto usato nel Cash Flow, ────
+// necessaria per calcolare la quota di fatturato "implicita" H1 2026 dal target annuo.
+const CF_SEAS=[.80,.78,.90,.90,.78,.92,.85,0.54,1.02,1.08,1.12,0.81];
+const CF_MONTHS=[
+  {c:7,y:2026},{c:8,y:2026},{c:9,y:2026},{c:10,y:2026},{c:11,y:2026},{c:12,y:2026},
+  {c:1,y:2027},{c:2,y:2027},{c:3,y:2027}
+];
+function cfGetH1Revenue(P, OREV){
+  const fullYearSeas = CF_SEAS.reduce((s,v)=>s+v,0);
+  let seasH2 = 0; for (let c=7;c<=12;c++) seasH2 += CF_SEAS[c-1];
+  const target26 = P.rev26 * seasH2 / fullYearSeas;
+  // H2 2026 pianificato (backlog confermato o quota stagionale, il maggiore dei due)
+  let sumH2_26 = 0;
+  CF_MONTHS.forEach((m,i) => {
+    if (m.y !== 2026) return;
+    const quota = target26 * CF_SEAS[m.c-1] / seasH2;
+    const conf = OREV ? OREV[i] : undefined;
+    sumH2_26 += (conf !== undefined ? Math.max(conf, quota) : quota);
+  });
+  const h1Implicit = P.rev26 - target26;   // quota H1 "implicita" nel target annuo
+  const revFull26 = h1Implicit + sumH2_26;
+  return { h1Implicit, revFull26 };
+}
+// Costruisce un oggetto DATA-compatibile per H1 2026 usando le assunzioni di costo
+// del Cash Flow (stesse formule di calcPL, limitate al semestre gen-giu).
+function buildH1DataFromCashFlow(P, OREV){
+  const { h1Implicit } = cfGetH1Revenue(P, OREV);
+  const rev = Math.max(0, h1Implicit) * 1000; // k€ → €
+  const mat = rev * P.matPct / 100;
+  const sub = rev * P.subPct / 100;
+  const labor = P.laborK * 6 * 1000;
+  const energy = rev * P.energyPct / 100;
+  const rent = P.rentK * 6 * 1000;
+  const comm = rev * P.commPct / 100;
+  const roy = rev * P.royPct / 100;
+  const other = P.otherFixedK * 6 * 1000 + rev * P.otherVarPct / 100;
+  const amm = P.amm26 / 2 * 1000;
+  const intInc = 10 / 2 * 1000;
+  const intExp = 25 / 2 * 1000;
+  const di = ((P.invMPK + P.invIMBK + P.invSLK + P.invPFK) - 168.4) / 2 * 1000;
+  const ebitda = rev + di - mat - sub - labor - energy - rent - comm - roy - other;
+  const ebit = ebitda - amm;
+  const ebt = ebit + intInc - intExp;
+  const tfm = Math.max(0, ebt * P.tfmPct / 100);
+  const taxBase = Math.max(0, ebt - tfm);
+  const ires = taxBase * P.iresR / 100;
+  const irap = taxBase * P.irapR / 100;
+  const net = ebt - tfm - ires - irap;
+
+  return {
+    ricavi: rev, ricaviDiversi: 0, ricaviStampi: 0, varRimanenze: di,
+    mpAcquisti: mat, materialiConsumo: 0, imballi: 0, pfAcquistati: 0, lavCTerzi: sub,
+    salari: labor, interinale: 0, contributi: 0, tfr: 0, welfare: 0,
+    energia: energy, affitti: rent, leasing: 0, noleggi: 0,
+    ammMacchinari: amm, ammStampi: 0, ammAltri: 0, ammAuto: 0,
+    provvigioni: comm, pubblicita: 0, svariComm: 0, royalties: roy,
+    consulAmm: 0, consulTec: 0, compensoAmm: 0, tfmAmm: tfm, revisore: 0, speseBancarie: 0, manutenzioni: 0, altriGA: other,
+    interessi: intExp, ricaviTitoli: 0, intAttiviCC: intInc, dividendi: 0,
+    ires: ires, irap: irap, utile: net, oreProduzione: 15*1700, nPresse: 6,
+  };
+}
 function normCli(s){
   return (s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
 }
@@ -1661,21 +1524,22 @@ function loadCashFlowSync(){
       CF_SYNC.loaded = true; CF_SYNC.ok = true;
       CF_SYNC.OREV = data.OREV || null;
       CF_SYNC.OBACKLOG = data.OBACKLOG || null;
+      CF_SYNC.P = data;
       CF_SYNC.rev26 = data.rev26; CF_SYNC.growth27 = data.growth27;
       CF_SYNC.updated = data._updated || null;
       const agg = aggregateBacklog(CF_SYNC.OBACKLOG);
       CF_SYNC.byClient = agg.byClient; CF_SYNC.tot2026 = agg.tot2026; CF_SYNC.tot2027 = agg.tot2027;
+      DATA['H1-2026'] = buildH1DataFromCashFlow(data, CF_SYNC.OREV);
       updateSyncBadge();
-      renderClienti();
-      renderBreakEven();
+      render();
     })
     .catch(() => { CF_SYNC.loaded = true; CF_SYNC.ok = false; updateSyncBadge(); });
 }
 
 function setCliAnno(anno, btn) {
   currentCliAnno = anno;
-  ['2024','2025','2026','Q1-2026'].forEach(a => {
-    const b = document.getElementById('cli-btn-' + (a==='Q1-2026'?'Q1':a));
+  ['2024','2025','2026','H1-2026'].forEach(a => {
+    const b = document.getElementById('cli-btn-' + (a==='H1-2026'?'H1':a));
     if (b) b.classList.toggle('active', a === anno);
   });
   renderClienti();
@@ -1684,56 +1548,61 @@ function setCliAnno(anno, btn) {
 function renderClienti() {
   const el = document.getElementById('clienti-body');
 
-  if (currentCliAnno === 'Q1-2026') {
-    // Stato Patrimoniale sintetico Q1 2026
+  if (currentCliAnno === 'H1-2026') {
+    // Posizione Finanziaria al 30/06/2026 — dati reali dal Cash Flow (params.json), non stimati
+    if (!CF_SYNC.ok) {
+      el.innerHTML = `<div style="padding:24px 20px;color:var(--text2);font-size:13px">⏳ In attesa di sincronizzazione con il Cash Flow…</div>`;
+      return;
+    }
+    const p = CF_SYNC.P || {};
+    const cassa = (p.startCash || 0) * 1000;
+    const crediti = (p.openRec || 0) * 1000;
+    const debitiForn = (p.openPay || 0) * 1000;
+    // Patrimonio extra-operativo e debiti bancari residui: dati reali dal Cash Flow (renderLoans/extraAssets),
+    // non sincronizzati live via params.json — aggiornare a mano se cambiano sostanzialmente.
+    const extraAssets = 400000 + 147910 + 75000 + 44720 + 74900 + 1000; // depositi, polizza, fondo TFR, titoli
+    const debitiBancari = 300000 + 128000 + 129000 + 24000 + 30000 + 20000; // residui piano ammortamento mutui
+    const pfn = debitiBancari - cassa;
+    const totAttivita = cassa + crediti + extraAssets;
+    const totPassivita = debitiBancari + debitiForn;
+
     el.innerHTML = `
-      <div style="padding:14px 20px;border-bottom:1px solid var(--border);font-size:12px;color:var(--orange)">
-        📋 <strong>Stato Patrimoniale sintetico al 31/03/2026</strong> — Bilancio provvisorio
+      <div style="padding:14px 20px;border-bottom:1px solid var(--border);font-size:12px;color:var(--accent)">
+        🔗 <strong>Posizione Finanziaria al 30/06/2026</strong> — dati reali dal Cash Flow (cassa, crediti, debiti, mutui)${CF_SYNC.updated ? ', aggiornato al ' + CF_SYNC.updated : ''}. Non include voci non tracciate dal Cash Flow (magazzino, immobilizzazioni, TFR, fondo TFM) — per lo stato patrimoniale completo serve il bilancio.
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:0">
         <div style="border-right:1px solid var(--border)">
-          <div style="padding:10px 20px;font-size:11px;text-transform:uppercase;letter-spacing:0.7px;color:var(--text3);border-bottom:1px solid var(--border)">Attività</div>
+          <div style="padding:10px 20px;font-size:11px;text-transform:uppercase;letter-spacing:0.7px;color:var(--text3);border-bottom:1px solid var(--border)">Attività (tracciate)</div>
           ${[
-            ['Cassa banche (operativa)', 1600506, 'var(--green)'],
-            ['  di cui depositi vincolati BCC', -623517, 'var(--text3)'],
-            ['Crediti clienti nazionali', 347856, ''],
-            ['Crediti clienti esteri', 109762, ''],
-            ['CE dopo incasso', 134063, ''],
-            ['Magazzino stimato', _magQ1, 'var(--orange)'],
-            ['Immobilizzazioni nette', 463000, ''],
-            ['Altri crediti e ratei', 195000, ''],
+            ['Cassa operativa', cassa, 'var(--green)'],
+            ['Crediti clienti', crediti, ''],
+            ['Patrimonio extra-operativo (depositi/titoli/polizze)', extraAssets, ''],
           ].map(([k,v,c]) => `<div style="padding:8px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between">
             <span style="font-size:12px;color:${c||'var(--text2)'}">${k}</span>
             <span style="font-family:var(--mono);font-size:13px;color:${c||'var(--text)'}">${fmt(v)}</span>
           </div>`).join('')}
           <div style="padding:10px 20px;background:rgba(79,110,247,0.06);display:flex;justify-content:space-between">
-            <span style="font-size:13px;font-weight:600;color:var(--accent)">TOTALE ATTIVITÀ</span>
-            <span style="font-family:var(--mono);font-size:14px;font-weight:600;color:var(--accent)">€ 5.316k</span>
+            <span style="font-size:13px;font-weight:600;color:var(--accent)">TOTALE ATTIVITÀ TRACCIATE</span>
+            <span style="font-family:var(--mono);font-size:14px;font-weight:600;color:var(--accent)">${fmt(totAttivita)}</span>
           </div>
         </div>
         <div>
-          <div style="padding:10px 20px;font-size:11px;text-transform:uppercase;letter-spacing:0.7px;color:var(--text3);border-bottom:1px solid var(--border)">Passività</div>
+          <div style="padding:10px 20px;font-size:11px;text-transform:uppercase;letter-spacing:0.7px;color:var(--text3);border-bottom:1px solid var(--border)">Passività (tracciate)</div>
           ${[
-            ['Patrimonio netto', 1825000, 'var(--green)'],
-            ['  di cui utile Q1 2026', 35835, 'var(--text3)'],
-            ['Debiti bancari (finanziamenti)', 756739, ''],
-            ['Fornitori + FT da ricevere', 240393, ''],
-            ['Debiti tributari e previdenziali', 156000, ''],
-            ['TFR dipendenti', 188012, ''],
-            ['Fondo TFM amministratori', 332203, ''],
-            ['Altri debiti e ratei', 21000, ''],
+            ['Debiti bancari (residuo mutui/finanziamenti)', debitiBancari, ''],
+            ['Debiti fornitori', debitiForn, ''],
           ].map(([k,v,c]) => `<div style="padding:8px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between">
             <span style="font-size:12px;color:${c||'var(--text2)'}">${k}</span>
             <span style="font-family:var(--mono);font-size:13px;color:${c||'var(--text)'}">${fmt(v)}</span>
           </div>`).join('')}
           <div style="padding:10px 20px;background:rgba(79,110,247,0.06);display:flex;justify-content:space-between">
-            <span style="font-size:13px;font-weight:600;color:var(--accent)">TOTALE PASSIVITÀ</span>
-            <span style="font-family:var(--mono);font-size:14px;font-weight:600;color:var(--accent)">€ 5.316k</span>
+            <span style="font-size:13px;font-weight:600;color:var(--accent)">TOTALE PASSIVITÀ TRACCIATE</span>
+            <span style="font-family:var(--mono);font-size:14px;font-weight:600;color:var(--accent)">${fmt(totPassivita)}</span>
           </div>
         </div>
       </div>
       <div style="padding:12px 20px;font-size:11px;color:var(--text3)">
-        Cassa operativa disponibile: <strong style="color:var(--green);font-family:var(--mono)">€ 977k</strong> (esclusi €623k depositi vincolati BCC) · Debito finanziario netto: <strong style="font-family:var(--mono)">${fmt(756739 - 977000)}</strong>
+        Posizione Finanziaria Netta (PFN): <strong style="font-family:var(--mono);color:${pfn<0?'var(--green)':'var(--red)'}">${pfn<0?'−'+fmt(Math.abs(pfn)):fmt(pfn)}</strong> ${pfn<0?'(cassa superiore ai debiti finanziari ✓)':''}
       </div>
     `;
     return;
@@ -1962,138 +1831,7 @@ function loadSimState() {
 }
 
 // ─── MAIN RENDER ─────────────────────────────────────────────────────────────
-function resetStimeQ1() {
-  try { localStorage.removeItem('htp_cont_stime_q1'); localStorage.removeItem('htp_cont_magQ1'); } catch(e) {}
-  // Ripristina valori default
-  STIME_Q1.magazzino.stimato   = 200000; STIME_Q1.magazzino.reale   = null; STIME_Q1.magazzino.contab   = false;
-  STIME_Q1.ammortamenti.stimato= 30000;  STIME_Q1.ammortamenti.reale= null; STIME_Q1.ammortamenti.contab= false;
-  STIME_Q1.tfr.stimato         = 9300;   STIME_Q1.tfr.reale         = null; STIME_Q1.tfr.contab         = false;
-  STIME_Q1.terzaDecima.stimato = null;   STIME_Q1.terzaDecima.reale = null; STIME_Q1.terzaDecima.contab = false;
-  STIME_Q1.royalties.stimato   = null;   STIME_Q1.royalties.reale   = null; STIME_Q1.royalties.contab   = false;
-  STIME_Q1.tfmAmm.stimato      = null;   STIME_Q1.tfmAmm.reale      = null; STIME_Q1.tfmAmm.contab      = false;
-  STIME_Q1.imposte.stimato     = null;   STIME_Q1.imposte.reale     = null; STIME_Q1.imposte.contab     = false;
-  STIME_Q1.intAttivi.stimato   = null;   STIME_Q1.intAttivi.reale   = null; STIME_Q1.intAttivi.contab   = false;
-  _magQ1 = 200000;
-  DATA['Q1-2026'].varRimanenze = 200000 - (118997+3488+23679+22196);
-  renderStimeQ1();
-  render();
-}
-
-function handleStima(el) {
-  const k = el.dataset.key;
-  const type = el.dataset.type;
-  if (!k || !STIME_Q1[k]) return;
-  if (type === 'stimato') {
-    STIME_Q1[k].stimato = el.value === '' ? null : parseInt(el.value) || 0;
-    if (k === 'magazzino') { 
-      _magQ1 = STIME_Q1[k].stimato || 200000;
-      const magEff = (STIME_Q1.magazzino.contab && STIME_Q1.magazzino.reale !== null) ? STIME_Q1.magazzino.reale : _magQ1;
-      DATA['Q1-2026'].varRimanenze = magEff - (118997+3488+23679+22196);
-    }
-  } else if (type === 'reale') {
-    STIME_Q1[k].reale = el.value === '' ? null : parseInt(el.value) || 0;
-    if (k === 'magazzino') {
-      const magEff = (STIME_Q1.magazzino.contab && STIME_Q1.magazzino.reale !== null) ? STIME_Q1.magazzino.reale : _magQ1;
-      DATA['Q1-2026'].varRimanenze = magEff - (118997+3488+23679+22196);
-    }
-  } else if (type === 'contab') {
-    STIME_Q1[k].contab = el.checked;
-    if (k === 'magazzino') {
-      const magEff = (STIME_Q1.magazzino.contab && STIME_Q1.magazzino.reale !== null) ? STIME_Q1.magazzino.reale : _magQ1;
-      DATA['Q1-2026'].varRimanenze = magEff - (118997+3488+23679+22196);
-    }
-  }
-  saveStimeQ1();
-  // Ri-renderizza solo KPI e CE senza toccare la tabella stime
-  renderKPI();
-  renderCE();
-  // Se checkbox, ri-renderizza tutta la tabella per aggiornare i badge
-  if (type === 'contab') renderStimeQ1();
-}
-
-function renderStimeQ1() {
-  const panel = document.getElementById('stime-q1-panel');
-  const tbl = document.getElementById('stime-q1-table');
-  if (!panel || !tbl) return;
-
-  if (currentAnno !== 'Q1-2026') { panel.style.display = 'none'; return; }
-  panel.style.display = 'block';
-
-  // Calcola valori stimati dinamici
-  const defaults = {
-    magazzino:    _magQ1,
-    ammortamenti: 30000,
-    tfr:          9300,
-    terzaDecima:  Math.round(DATA[2025].salari / 12 / 4),
-    royalties:    Math.round(DATA['Q1-2026'].ricavi * 0.015),
-    tfmAmm:       Math.round(DATA[2025].tfmAmm / 4),
-    imposte:      null,
-    intAttivi:    _intAttiviQ1,
-  };
-
-  let rows = '';
-  Object.keys(STIME_Q1).forEach(k => {
-    const s = STIME_Q1[k];
-    const stimVal = s.stimato !== null ? s.stimato : (defaults[k] || 0);
-    const effVal  = s.contab && s.reale !== null ? s.reale : stimVal;
-    const badge   = s.contab
-      ? `<span style="background:rgba(62,207,142,0.15);color:#3ecf8e;border-radius:4px;padding:0.1rem 0.4rem;font-size:0.7rem;font-weight:600;">✓ REALE</span>`
-      : `<span style="background:rgba(200,169,110,0.12);color:var(--accent);border-radius:4px;padding:0.1rem 0.4rem;font-size:0.7rem;font-weight:600;">~ STIMA</span>`;
-    rows += `
-      <tr style="border-bottom:1px solid var(--border);">
-        <td style="padding:0.5rem 0.4rem;font-size:0.78rem;color:var(--text);">${s.label}</td>
-        <td style="padding:0.5rem 0.4rem;font-size:0.72rem;color:var(--muted);">${s.note}</td>
-        <td style="padding:0.5rem 0.4rem;text-align:right;">
-          <input type="number" value="${stimVal || ''}" placeholder="stimato"
-            style="width:100px;padding:0.25rem 0.4rem;border-radius:5px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:0.78rem;font-family:var(--mono);text-align:right;"
-            data-key="${k}" data-type="stimato"
-            oninput="handleStima(this)">
-        </td>
-        <td style="padding:0.5rem 0.4rem;">${badge}</td>
-        <td style="padding:0.5rem 0.4rem;text-align:right;">
-          <input type="number" value="${s.reale !== null ? s.reale : ''}" placeholder="reale"
-            style="width:100px;padding:0.25rem 0.4rem;border-radius:5px;border:1px solid ${s.contab ? 'rgba(62,207,142,0.4)' : 'var(--border)'};background:var(--surface);color:var(--text);font-size:0.78rem;font-family:var(--mono);text-align:right;"
-            data-key="${k}" data-type="reale"
-            oninput="handleStima(this)">
-        </td>
-        <td style="padding:0.5rem 0.6rem;">
-          <label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer;font-size:0.75rem;color:var(--muted);">
-            <input type="checkbox" ${s.contab ? 'checked' : ''}
-              data-key="${k}" data-type="contab"
-              onchange="handleStima(this)">
-            Contabilizzato
-          </label>
-        </td>
-      </tr>`;
-  });
-
-  tbl.innerHTML = `
-    <table style="width:100%;border-collapse:collapse;">
-      <thead>
-        <tr style="border-bottom:1px solid var(--border);">
-          <th style="padding:0.4rem;font-size:0.72rem;color:var(--muted);text-align:left;font-weight:500;">Voce</th>
-          <th style="padding:0.4rem;font-size:0.72rem;color:var(--muted);text-align:left;font-weight:500;">Note</th>
-          <th style="padding:0.4rem;font-size:0.72rem;color:var(--muted);text-align:right;font-weight:500;">Valore stimato</th>
-          <th style="padding:0.4rem;font-size:0.72rem;color:var(--muted);text-align:center;font-weight:500;">Stato</th>
-          <th style="padding:0.4rem;font-size:0.72rem;color:var(--muted);text-align:right;font-weight:500;">Valore reale</th>
-          <th style="padding:0.4rem;font-size:0.72rem;color:var(--muted);text-align:left;font-weight:500;"></th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>`;
-}
-
 function render() {
-  // Box magazzino Q1 (legacy)
-  const magBox = document.getElementById('mag-q1-box');
-  if (magBox) magBox.style.display = 'none';
-
-  // Aggiorna varRimanenze con valore corrente
-  if (currentAnno === 'Q1-2026') {
-    const magEff = (STIME_Q1.magazzino.contab && STIME_Q1.magazzino.reale !== null) ? STIME_Q1.magazzino.reale : _magQ1;
-    DATA['Q1-2026'].varRimanenze = magEff - (118997+3488+23679+22196);
-  }
-
   renderKPI();
   renderCE();
   renderCostBars();
@@ -2108,7 +1846,6 @@ function render() {
 
 loadContState();
 window.addEventListener('beforeunload', saveContState);
-renderStimeQ1();
 render();
 loadCashFlowSync();
 </script>
