@@ -812,7 +812,7 @@ function renderCE() {
 
   const banner = currentAnno === 'H1-2026'
     ? `<div style="background:rgba(79,110,247,0.08);border-bottom:1px solid rgba(79,110,247,0.2);padding:10px 20px;font-size:12px;color:var(--accent)">
-        🔗 <strong>Stima H1 2026 dal modello Cash Flow</strong> — non è un bilancio contabile: ricavi = quota H1 implicita nel target annuo (€${(CF_SYNC.rev26||0).toLocaleString('it-IT')}k) + ordini confermati; costi = % e assunzioni impostate nel Cash Flow (materie prime, lavoro, energia, ecc.), non voci di mastrino. ${CF_SYNC.updated ? 'Aggiornato al ' + CF_SYNC.updated + '.' : ''}
+        🔗 <strong>Stima H1 2026 dal modello Cash Flow</strong> — non è un bilancio contabile: ricavi = quota H1 implicita nel target annuo (€${(CF_SYNC.rev26||0).toLocaleString('it-IT')}k) + ordini confermati; materie prime/energia/commerciale/royalties = % dal Cash Flow; personale (inclusi TFR e 13ª) = 2025 reale riproporzionato al semestre; magazzino = valore reale dai cursori scorte del Cash Flow. ${CF_SYNC.updated ? 'Aggiornato al ' + CF_SYNC.updated + '.' : ''}
       </div>`
     : '';
 
@@ -1438,7 +1438,6 @@ function buildH1DataFromCashFlow(P, OREV){
   const rev = Math.max(0, h1Implicit) * 1000; // k€ → €
   const mat = rev * P.matPct / 100;
   const sub = rev * P.subPct / 100;
-  const labor = P.laborK * 6 * 1000;
   const energy = rev * P.energyPct / 100;
   const rent = P.rentK * 6 * 1000;
   const comm = rev * P.commPct / 100;
@@ -1447,10 +1446,28 @@ function buildH1DataFromCashFlow(P, OREV){
   const amm = P.amm26 / 2 * 1000;
   const intInc = 10 / 2 * 1000;
   const intExp = 25 / 2 * 1000;
-  const di = ((P.invMPK + P.invIMBK + P.invSLK + P.invPFK) - 168.4) / 2 * 1000;
-  const ebitda = rev + di - mat - sub - labor - energy - rent - comm - roy - other;
+
+  // Magazzino reale al 30/06 (dai cursori scorte del Cash Flow, non stimato)
+  // Apertura 2026 (fine 2025): MP €119k + Imballi €3,5k + Semilav. €23,7k + PF €22,2k = €168,4k
+  const magazzinoAttuale = (P.invMPK + P.invIMBK + P.invSLK + P.invPFK) * 1000;
+  const magazzinoApertura2026 = 168400;
+  const di = magazzinoAttuale - magazzinoApertura2026;
+
+  // Personale: riproporzionato dal 2025 reale (6/12), non dal parametro medio del Cash Flow.
+  // La quota 2025 già include per costruzione la sua quota di TFR e 13ª — dividerla a metà
+  // dà correttamente il costo H1 accrual-consistent, senza bisogno di aggiungere la 13ª a parte.
+  const D25 = DATA[2025];
+  const salari = D25.salari * 0.5;
+  const interinale = D25.interinale * 0.5;
+  const contributi = D25.contributi * 0.5;
+  const tfr = D25.tfr * 0.5;
+  const welfare = D25.welfare * 0.5;
+  const costoPersonaleH1 = salari + interinale + contributi + tfr + welfare;
+
+  const ebitda = rev + di - mat - sub - costoPersonaleH1 - energy - rent - comm - roy - other;
   const ebit = ebitda - amm;
   const ebt = ebit + intInc - intExp;
+  // TFM Amministratore: 20% dell'utile lordo (EBT), come da parametro Cash Flow
   const tfm = Math.max(0, ebt * P.tfmPct / 100);
   const taxBase = Math.max(0, ebt - tfm);
   const ires = taxBase * P.iresR / 100;
@@ -1460,7 +1477,7 @@ function buildH1DataFromCashFlow(P, OREV){
   return {
     ricavi: rev, ricaviDiversi: 0, ricaviStampi: 0, varRimanenze: di,
     mpAcquisti: mat, materialiConsumo: 0, imballi: 0, pfAcquistati: 0, lavCTerzi: sub,
-    salari: labor, interinale: 0, contributi: 0, tfr: 0, welfare: 0,
+    salari, interinale, contributi, tfr, welfare,
     energia: energy, affitti: rent, leasing: 0, noleggi: 0,
     ammMacchinari: amm, ammStampi: 0, ammAltri: 0, ammAuto: 0,
     provvigioni: comm, pubblicita: 0, svariComm: 0, royalties: roy,
@@ -1558,17 +1575,18 @@ function renderClienti() {
     const cassa = (p.startCash || 0) * 1000;
     const crediti = (p.openRec || 0) * 1000;
     const debitiForn = (p.openPay || 0) * 1000;
+    const magazzino = ((p.invMPK||0) + (p.invIMBK||0) + (p.invSLK||0) + (p.invPFK||0)) * 1000;
     // Patrimonio extra-operativo e debiti bancari residui: dati reali dal Cash Flow (renderLoans/extraAssets),
     // non sincronizzati live via params.json — aggiornare a mano se cambiano sostanzialmente.
     const extraAssets = 400000 + 147910 + 75000 + 44720 + 74900 + 1000; // depositi, polizza, fondo TFR, titoli
     const debitiBancari = 300000 + 128000 + 129000 + 24000 + 30000 + 20000; // residui piano ammortamento mutui
     const pfn = debitiBancari - cassa;
-    const totAttivita = cassa + crediti + extraAssets;
+    const totAttivita = cassa + crediti + magazzino + extraAssets;
     const totPassivita = debitiBancari + debitiForn;
 
     el.innerHTML = `
       <div style="padding:14px 20px;border-bottom:1px solid var(--border);font-size:12px;color:var(--accent)">
-        🔗 <strong>Posizione Finanziaria al 30/06/2026</strong> — dati reali dal Cash Flow (cassa, crediti, debiti, mutui)${CF_SYNC.updated ? ', aggiornato al ' + CF_SYNC.updated : ''}. Non include voci non tracciate dal Cash Flow (magazzino, immobilizzazioni, TFR, fondo TFM) — per lo stato patrimoniale completo serve il bilancio.
+        🔗 <strong>Posizione Finanziaria al 30/06/2026</strong> — dati reali dal Cash Flow (cassa, crediti, debiti, magazzino, mutui)${CF_SYNC.updated ? ', aggiornato al ' + CF_SYNC.updated : ''}. Non include immobilizzazioni, TFR e fondo TFM (non tracciati dal Cash Flow) — per lo stato patrimoniale completo serve il bilancio.
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:0">
         <div style="border-right:1px solid var(--border)">
@@ -1576,6 +1594,7 @@ function renderClienti() {
           ${[
             ['Cassa operativa', cassa, 'var(--green)'],
             ['Crediti clienti', crediti, ''],
+            ['Magazzino (MP + imballi + semilav. + PF)', magazzino, ''],
             ['Patrimonio extra-operativo (depositi/titoli/polizze)', extraAssets, ''],
           ].map(([k,v,c]) => `<div style="padding:8px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between">
             <span style="font-size:12px;color:${c||'var(--text2)'}">${k}</span>
