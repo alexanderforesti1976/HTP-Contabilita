@@ -1724,28 +1724,37 @@ function renderClienti() {
 function renderBreakEven() {
   const el = document.getElementById('breakeven-body');
 
-  // Costi fissi mensili da bilancio 2025
+  // Base: H1 2026 reale (bilancio 30/06, live da params.json) se disponibile,
+  // altrimenti 2025 come fallback finché la sincronizzazione non è completa.
+  const useH1 = CF_SYNC.ok && DATA['H1-2026'] && DATA['H1-2026'].ricavi > 0;
+  const basisAnno = useH1 ? 'H1-2026' : 2025;
+  const basisLabel = useH1 ? 'H1 2026 reale (bilancio 30/06)' : '2025 (fallback, in attesa di sync)';
+  const mesiBase = useH1 ? 6 : 12;
+  const dBase = DATA[basisAnno];
+  const cBase = calc(dBase);
+  const RBase = cBase.ricaviTotali;
+
+  // Costi fissi mensili
   const fissi = {
-    'Personale indiretto (5 prod + 2 amm + 2 comm)': Math.round((DATA[2025].salari * 0.47 + DATA[2025].contributi * 0.47 + DATA[2025].tfr * 0.47) / 12),
-    'Affitto capannone': Math.round(DATA[2025].affitti / 12),
-    'Leasing + noleggi': Math.round((DATA[2025].leasing + DATA[2025].noleggi) / 12),
-    'Ammortamenti': Math.round(calc(DATA[2025]).ammTot / 12),
-    'Consulenze + G&A fissi': Math.round((DATA[2025].consulAmm + DATA[2025].consulTec + DATA[2025].compensoAmm + DATA[2025].revisore + DATA[2025].speseBancarie) / 12),
-    'TFM amministratore (accantonamento)': Math.round(DATA[2025].tfmAmm / 12),
-    'Manutenzioni (quota fissa)': Math.round(DATA[2025].manutenzioni * 0.6 / 12),
-    'Royalties / management fees': Math.round(DATA[2025].royalties / 12),
+    'Personale indiretto (5 prod + 2 amm + 2 comm)': Math.round((dBase.salari * 0.47 + dBase.contributi * 0.47 + dBase.tfr * 0.47) / mesiBase),
+    'Affitto capannone': Math.round(dBase.affitti / mesiBase),
+    'Leasing + noleggi': Math.round((dBase.leasing + dBase.noleggi) / mesiBase),
+    'Ammortamenti': Math.round(cBase.ammTot / mesiBase),
+    'Consulenze + G&A fissi': Math.round((dBase.consulAmm + dBase.consulTec + dBase.compensoAmm + dBase.revisore + dBase.speseBancarie) / mesiBase),
+    'TFM amministratore (accantonamento)': Math.round(dBase.tfmAmm / mesiBase),
+    'Manutenzioni (quota fissa)': Math.round(dBase.manutenzioni * 0.6 / mesiBase),
+    'Royalties / management fees': Math.round(dBase.royalties / mesiBase),
     'Assicurazioni + altri fissi': Math.round(2500),
   };
 
-  // Costi variabili % su ricavi (da bilancio 2025)
-  const R2025 = calc(DATA[2025]).ricaviTotali;
+  // Costi variabili % su ricavi
   const cvPct = {
-    'Materie prime netto': pct(calc(DATA[2025]).costoMP, R2025) / 100,
-    'Lavorazioni c/terzi': pct(DATA[2025].lavCTerzi, R2025) / 100,
-    'Personale diretto (10 op.)': pct(DATA[2025].salari * 0.53 + DATA[2025].contributi * 0.53 + DATA[2025].tfr * 0.53, R2025) / 100,
-    'Energia (quota variabile 80%)': pct(DATA[2025].energia * 0.80, R2025) / 100,
-    'Provvigioni agenti': pct(DATA[2025].provvigioni, R2025) / 100,
-    'Pubblicità/commerciale variabile': pct(DATA[2025].pubblicita + DATA[2025].svariComm, R2025) / 100,
+    'Materie prime netto': pct(cBase.costoMP, RBase) / 100,
+    'Lavorazioni c/terzi': pct(dBase.lavCTerzi, RBase) / 100,
+    'Personale diretto (10 op.)': pct(dBase.salari * 0.53 + dBase.contributi * 0.53 + dBase.tfr * 0.53, RBase) / 100,
+    'Energia (quota variabile 80%)': pct(dBase.energia * 0.80, RBase) / 100,
+    'Provvigioni agenti': pct(dBase.provvigioni, RBase) / 100,
+    'Pubblicità/commerciale variabile': pct(dBase.pubblicita + dBase.svariComm, RBase) / 100,
   };
 
   const totFissiMese = Object.values(fissi).reduce((s,v) => s+v, 0);
@@ -1767,7 +1776,12 @@ function renderBreakEven() {
     scenari.push({ label: '🔗 Backlog confermato H2 2026 (Cash Flow)', ricavi: Math.round(CF_SYNC.tot2026 * 1000 / 6), color: '#4f6ef7' });
   }
 
-  el.innerHTML = `
+  const periodoLabel = useH1 ? 'H1 2026' : '2025';
+  const fonteBanner = `<div style="padding:10px 20px;border-bottom:1px solid var(--border);font-size:11px;color:${useH1?'var(--accent)':'var(--orange)'};background:${useH1?'rgba(79,110,247,0.06)':'rgba(245,158,11,0.06)'}">
+    ${useH1?'🔗':'⏳'} <strong>Base costi fissi/variabili: ${basisLabel}</strong>${useH1?', letta live da params.json del Cash Flow'+(CF_SYNC.updated?' · aggiornata al '+CF_SYNC.updated:''):''}.
+  </div>`;
+
+  el.innerHTML = fonteBanner + `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:1px solid var(--border)" class="be-grid">
       <!-- COSTI FISSI -->
       <div style="border-right:1px solid var(--border)">
@@ -1819,9 +1833,9 @@ function renderBreakEven() {
         <div style="font-size:11px;color:var(--text3);margin-top:4px">Ogni €100 di ricavi → €${(margineCont*100).toFixed(0)} per coprire i fissi</div>
       </div>
       <div>
-        <div style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:0.7px;margin-bottom:6px">Margine extra sul B.E. (2025)</div>
-        <div style="font-family:var(--mono);font-size:28px;color:var(--text);font-weight:600">${fmt(Math.round(calc(DATA[2025]).ricaviTotali/12) - breakEvenMese)}/mese</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:4px">Ricavi 2025 sopra il break-even</div>
+        <div style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:0.7px;margin-bottom:6px">Margine extra sul B.E. (${periodoLabel})</div>
+        <div style="font-family:var(--mono);font-size:28px;color:var(--text);font-weight:600">${fmt(Math.round(RBase/mesiBase) - breakEvenMese)}/mese</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px">Ricavi ${periodoLabel} sopra il break-even</div>
       </div>
     </div>
 
