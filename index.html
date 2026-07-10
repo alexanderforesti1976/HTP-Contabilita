@@ -1760,8 +1760,8 @@ function renderBreakEven() {
     { label: 'Break-even esatto', ricavi: breakEvenMese, color: '#f59e0b' },
     { label: 'Ritmo H1 2026 (reale)', ricavi: Math.round(calc(DATA['H1-2026']).ricaviTotali / 6), color: '#6366f1' },
     { label: 'Target minimo consigliato', ricavi: Math.round(breakEvenMese * 1.15), color: '#0891b2' },
-    { label: 'Ritmo 2025', ricavi: Math.round(2987000/12), color: '#059669' },
-    { label: 'Ritmo 2024 (ex Elring)', ricavi: Math.round((4459444-1514256)/12), color: '#22c55e' },
+    { label: 'Ritmo 2025', ricavi: Math.round(calc(DATA[2025]).ricaviTotali/12), color: '#059669' },
+    { label: 'Ritmo 2024 (ex Elring)', ricavi: Math.round((calc(DATA[2024]).ricaviTotali-1514256)/12), color: '#22c55e' },
   ];
   if (CF_SYNC.loaded && CF_SYNC.ok && CF_SYNC.tot2026 > 0) {
     scenari.push({ label: '🔗 Backlog confermato H2 2026 (Cash Flow)', ricavi: Math.round(CF_SYNC.tot2026 * 1000 / 6), color: '#4f6ef7' });
@@ -1820,7 +1820,7 @@ function renderBreakEven() {
       </div>
       <div>
         <div style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:0.7px;margin-bottom:6px">Margine extra sul B.E. (2025)</div>
-        <div style="font-family:var(--mono);font-size:28px;color:var(--text);font-weight:600">${fmt(Math.round(2987000/12) - breakEvenMese)}/mese</div>
+        <div style="font-family:var(--mono);font-size:28px;color:var(--text);font-weight:600">${fmt(Math.round(calc(DATA[2025]).ricaviTotali/12) - breakEvenMese)}/mese</div>
         <div style="font-size:11px;color:var(--text3);margin-top:4px">Ricavi 2025 sopra il break-even</div>
       </div>
     </div>
