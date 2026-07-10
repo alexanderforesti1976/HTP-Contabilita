@@ -828,7 +828,7 @@ function renderCE() {
     { label: 'Ricavi diversi + vendita stampi', val: d.ricaviDiversi + d.ricaviStampi, sub: true },
     { margin: true, label: 'TOTALE RICAVI', val: R },
     { sep: 'Costi Variabili' },
-    { label: '− Materie prime, imballi, semilavorati (acquisti)', val: -(d.mpAcquisti + d.materialiConsumo + d.imballi + d.pfAcquistati), sub: true },
+    { label: '− Materie prime, consumo, imballi, prodotti finiti/stampi rivendita', val: -(d.mpAcquisti + d.materialiConsumo + d.imballi + d.pfAcquistati), sub: true },
     { label: (c.effettoScorte >= 0 ? '+ ' : '− ') + 'Variazione rimanenze', val: c.effettoScorte, sub: true, pos: c.effettoScorte >= 0 },
     { label: '− Lavorazioni conto terzi', val: -d.lavCTerzi, sub: true },
     { margin: true, label: '= VALORE AGGIUNTO', val: c.valorAggiunto },
