@@ -299,6 +299,7 @@
     <button class="anno-btn" onclick="setAnno('delta', this)">Δ 24→25</button>
     <button class="anno-btn" onclick="setAnno('Q1-2026', this)">Q1 2026</button>
   </div>
+  <span id="cf-sync-badge" title="Sincronizzazione dati ordini/backlog dal tool Cash Flow" style="font-size:11px;padding:4px 10px;border-radius:12px;background:rgba(245,158,11,0.12);color:var(--orange);border:1px solid rgba(245,158,11,0.25);white-space:nowrap">⏳ Cash Flow…</span>
 </div>
 
 <div class="container">
@@ -1599,6 +1600,78 @@ const CLI_TOTALI = { 2024: 4459444, 2025: 2986999, 2026: 910168 };
 const CLI_LABEL = { 2024: 'Anno 2024 — Totale €4,46M', 2025: 'Anno 2025 — Totale €2,99M', 2026: 'YTD gen-mag 2026 — Totale €910k (proiez. ~€2,18M)' };
 let currentCliAnno = '2024';
 
+// ─── SYNC CON CASH FLOW (params.json, sola lettura) ─────────────────────────
+// Legge ordini confermati (OREV) e backlog per cliente (OBACKLOG) direttamente
+// dal repo HTP-CashFlow, così i dati di fatturato/backlog restano coerenti fra
+// i due strumenti senza doverli aggiornare due volte.
+let CF_SYNC = { loaded:false, ok:false, OREV:null, OBACKLOG:null, rev26:null, growth27:null, updated:null, byClient:{}, tot2026:0, tot2027:0 };
+
+function normCli(s){
+  return (s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+}
+function findBacklogForClient(nome, byClient){
+  const n = normCli(nome);
+  for (const k in byClient){
+    const nk = normCli(k);
+    if (n.includes(nk) || nk.includes(n)) return byClient[k];
+  }
+  return null;
+}
+function aggregateBacklog(OBACKLOG){
+  const byClient = {};
+  let tot2026 = 0, tot2027 = 0;
+  (OBACKLOG||[]).forEach(row => {
+    if (/27$/.test(row.m||'')) tot2027 += row.t; else tot2026 += row.t;
+    (row.c||[]).forEach(([name,val]) => { byClient[name] = (byClient[name]||0) + val; });
+  });
+  return { byClient, tot2026, tot2027 };
+}
+function updateSyncBadge(){
+  const el = document.getElementById('cf-sync-badge');
+  if (!el) return;
+  if (CF_SYNC.loaded && CF_SYNC.ok){
+    el.textContent = '🔗 Cash Flow sincronizzato' + (CF_SYNC.updated ? ' · ' + CF_SYNC.updated : '');
+    el.style.background = 'rgba(34,197,94,0.12)'; el.style.color = 'var(--green)'; el.style.borderColor = 'rgba(34,197,94,0.25)';
+  } else {
+    el.textContent = '⚠ Cash Flow non raggiungibile';
+    el.style.background = 'rgba(239,68,68,0.12)'; el.style.color = 'var(--red)'; el.style.borderColor = 'rgba(239,68,68,0.25)';
+  }
+}
+function cfProjectionBlock(){
+  if (!CF_SYNC.loaded || !CF_SYNC.ok){
+    return `<div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);border-radius:6px;padding:8px 12px;font-size:11px;color:var(--orange)"><strong>Dati YTD gen-mag 2026.</strong><br>Proiezione annua: ~€2,18M a ritmo attuale.</div>`;
+  }
+  const backlogEur = Math.round(CF_SYNC.tot2026 * 1000);
+  const projected = CLI_TOTALI['2026'] + backlogEur;
+  return `<div style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);border-radius:6px;padding:8px 12px;font-size:11px;color:var(--green)">
+    <strong>🔗 YTD gen-mag + backlog ordini confermato (lug-dic 26, da Cash Flow).</strong><br>
+    Proiezione annua: ~${fmt(projected)} (YTD ${fmt(CLI_TOTALI['2026'])} + backlog ${fmt(backlogEur)} · manca giugno)
+  </div>`;
+}
+function backlogNoteSuffix(nome){
+  if (!CF_SYNC.loaded || !CF_SYNC.ok) return '';
+  const v = findBacklogForClient(nome, CF_SYNC.byClient);
+  if (v == null) return '';
+  return ` · 🔗 backlog €${Math.round(v)}k (lug-dic 26)`;
+}
+function loadCashFlowSync(){
+  fetch('https://raw.githubusercontent.com/alexanderforesti1976/HTP-CashFlow/main/params.json?nocache=' + Date.now())
+    .then(r => r.json())
+    .then(data => {
+      CF_SYNC.loaded = true; CF_SYNC.ok = true;
+      CF_SYNC.OREV = data.OREV || null;
+      CF_SYNC.OBACKLOG = data.OBACKLOG || null;
+      CF_SYNC.rev26 = data.rev26; CF_SYNC.growth27 = data.growth27;
+      CF_SYNC.updated = data._updated || null;
+      const agg = aggregateBacklog(CF_SYNC.OBACKLOG);
+      CF_SYNC.byClient = agg.byClient; CF_SYNC.tot2026 = agg.tot2026; CF_SYNC.tot2027 = agg.tot2027;
+      updateSyncBadge();
+      renderClienti();
+      renderBreakEven();
+    })
+    .catch(() => { CF_SYNC.loaded = true; CF_SYNC.ok = false; updateSyncBadge(); });
+}
+
 function setCliAnno(anno, btn) {
   currentCliAnno = anno;
   ['2024','2025','2026','Q1-2026'].forEach(a => {
@@ -1682,7 +1755,7 @@ function renderClienti() {
       <div><span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:0.7px">Cliente #1</span><br><span style="font-family:var(--mono);font-size:16px;color:var(--${currentCliAnno==='2024'?'red':'text'})">${pct(top1,tot).toFixed(0)}% — ${clienti[0].nome.split(' ')[0]}</span></div>
       <div><span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:0.7px">Top 3 clienti</span><br><span style="font-family:var(--mono);font-size:16px;color:var(--${top3/tot>0.6?'orange':'text'})">${pct(top3,tot).toFixed(0)}% del fatturato</span></div>
       <div><span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:0.7px">Indice HHI</span><br><span style="font-family:var(--mono);font-size:16px;color:var(--${hhi>2500?'red':hhi>1500?'orange':'green'})">${Math.round(hhi)} <span style="font-size:11px;color:var(--text3)">(${hhi>2500?'alta concentrazione':hhi>1500?'media':'bassa'})</span></span></div>
-      ${currentCliAnno==='2026'?'<div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);border-radius:6px;padding:8px 12px;font-size:11px;color:var(--orange)"><strong>Dati YTD gen-mag 2026.</strong><br>Proiezione annua: ~€2,18M a ritmo attuale.</div>':''}
+      ${currentCliAnno==='2026'?cfProjectionBlock():''}
     </div>
     <div style="overflow-x:auto">
     <table style="width:100%;border-collapse:collapse">
@@ -1706,7 +1779,7 @@ function renderClienti() {
             <td style="padding:9px 14px;font-family:var(--mono);font-size:13px;color:var(--text)">${fmt(c.val)}</td>
             <td style="padding:9px 14px;font-family:var(--mono);font-size:13px;color:${p>20?'var(--red)':p>10?'var(--orange)':'var(--text2)'}">${p.toFixed(1)}%</td>
             <td class="cli-hide-mobile" style="padding:9px 14px;min-width:120px"><div style="height:5px;background:var(--surface2);border-radius:3px;overflow:hidden"><div style="height:100%;width:${barW}%;background:${colors[i]||'#374151'};border-radius:3px"></div></div></td>
-            <td class="cli-hide-mobile" style="padding:9px 14px;font-size:11px;color:var(--text3)">${c.note}</td>
+            <td class="cli-hide-mobile" style="padding:9px 14px;font-size:11px;color:var(--text3)">${c.note}${currentCliAnno==='2026'?backlogNoteSuffix(c.nome):''}</td>
           </tr>`;
         }).join('')}
       </tbody>
@@ -1758,6 +1831,9 @@ function renderBreakEven() {
     { label: 'Ritmo 2025', ricavi: Math.round(2987000/12), color: '#059669' },
     { label: 'Ritmo 2024 (ex Elring)', ricavi: Math.round((4459444-1514256)/12), color: '#22c55e' },
   ];
+  if (CF_SYNC.loaded && CF_SYNC.ok && CF_SYNC.tot2026 > 0) {
+    scenari.push({ label: '🔗 Backlog confermato H2 2026 (Cash Flow)', ricavi: Math.round(CF_SYNC.tot2026 * 1000 / 6), color: '#4f6ef7' });
+  }
 
   el.innerHTML = `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:1px solid var(--border)" class="be-grid">
@@ -2034,6 +2110,7 @@ loadContState();
 window.addEventListener('beforeunload', saveContState);
 renderStimeQ1();
 render();
+loadCashFlowSync();
 </script>
 </body>
 </html>
