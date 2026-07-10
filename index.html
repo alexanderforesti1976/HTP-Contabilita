@@ -818,7 +818,7 @@ function renderCE() {
 
   const banner = currentAnno === 'H1-2026'
     ? `<div style="background:rgba(79,110,247,0.08);border-bottom:1px solid rgba(79,110,247,0.2);padding:10px 20px;font-size:12px;color:var(--accent)">
-        📋 <strong>Bilancio reale H1 2026 (01/01–30/06)</strong> — dati da bozza bilancio 30/06/2026 + fatture di giugno registrate a luglio (competenza, €29.526,11). Ammortamenti, TFM amministratore e imposte non sono ancora contabilizzati nel semestrale: sono stimati dai parametri del Cash Flow e applicati al risultato reale. Magazzino di chiusura preso dai cursori scorte del Cash Flow (aggiornabile). ${CF_SYNC.updated ? 'Sincronizzato al ' + CF_SYNC.updated + '.' : ''}
+        📋 <strong>Bilancio reale H1 2026 (01/01–30/06)</strong> — dati letti live da params.json del Cash Flow (sezione "H1_2026_reale"), aggiornabili lì senza toccare questo tool. Ammortamenti, TFM amministratore e imposte non sono ancora contabilizzati nel semestrale: sono stimati dai parametri del Cash Flow e applicati al risultato reale. Magazzino di chiusura preso dai cursori scorte del Cash Flow. ${CF_SYNC.updated ? 'Sincronizzato al ' + CF_SYNC.updated + '.' : ''}
       </div>`
     : '';
 
@@ -1416,20 +1416,19 @@ let currentCliAnno = '2024';
 let CF_SYNC = { loaded:false, ok:false, OREV:null, OBACKLOG:null, P:null, rev26:null, growth27:null, updated:null, byClient:{}, tot2026:0, tot2027:0 };
 
 // ─── DATI REALI BILANCIO H1 2026 (01/01–30/06/2026) ─────────────────────────
-// Fonte: bozza_bilancio_30-06-26.pdf (Stato Patrimoniale + Conto Economico, mastrini)
-// + RETTIFICHE_FATTURE_GIUGNO_2026_RICEVUTE_A_LUGLIO_E_2026.ods (competenza: fatture
-//   datate 30/06/26 ma ricevute/registrate a luglio, €29.526,11 totali, già inclusi qui).
+// La fonte vera è il campo "H1_2026_reale" dentro params.json del Cash Flow — così
+// quando arriva un bilancio più preciso, si aggiorna params.json (un solo posto) e la
+// Contabilità lo recepisce da sola, senza bisogno di ricaricare file qui né di ritoccare
+// questo codice. Il blocco qui sotto è solo un fallback di sicurezza (dati del bilancio
+// 30/06/2026 + rettifiche fatture di luglio) nel caso params.json non abbia ancora quel campo.
 //
-// Perché questi numeri sono statici e non "modellati" dal Cash Flow: il 1° semestre
-// 2026 è un periodo CHIUSO — il fatturato e i costi già sostenuti sono fatti storici,
-// non previsioni che si muovono nel tempo. Il target €2.350k di Cash Flow è pensato per
-// proiettare il fatturato FUTURO (H2 2026, 2027), non per ricostruire un semestre già
-// contabilizzato: usarlo qui darebbe un numero sbagliato (verificato: la quota H1
-// implicita nel target sottostimava il fatturato reale di oltre €100k).
-// Restano invece agganciati live al Cash Flow solo le voci genuinamente ancora stimate:
-// ammortamenti, TFM amministratore, imposte (non contabilizzati nel semestrale) e il
-// magazzino di chiusura (dai cursori scorte, aggiornabili quando cambiano).
-const H1_2026_REALE = {
+// Perché il fatturato H1 è un dato fisso e non "modellato" dal target Cash Flow: il 1°
+// semestre 2026 è un periodo CHIUSO — ricavi e costi già sostenuti sono fatti storici,
+// non previsioni. Il target annuo (rev26) serve a proiettare il fatturato FUTURO (H2,
+// 2027), non a ricostruire un semestre già contabilizzato.
+// Restano invece agganciati live al Cash Flow solo ammortamenti, TFM amministratore,
+// imposte (non contabilizzati nel semestrale) e il magazzino di chiusura.
+const H1_2026_FALLBACK = {
   ricavi: 1236650.31, ricaviDiversi: 547.26, ricaviStampi: 11800.00,
   mpAcquisti: 195559.11, materialiConsumo: 9371.07, imballi: 4174.22, pfAcquistati: 22728.69,
   lavCTerzi: 49752.74,
@@ -1444,14 +1443,16 @@ const H1_2026_REALE = {
   esistenzeIniziali2026: 168359.33, // apertura magazzino reale (MP 119k + imballi 3,5k + semilav. 23,7k + PF 22,2k)
 };
 
-// Costruisce l'oggetto DATA per H1 2026: dati reali di bilancio (sopra, fissi) +
-// magazzino di chiusura live dal Cash Flow (variazione rimanenze) + stima
+// Costruisce l'oggetto DATA per H1 2026: dati reali (da params.json, o dal fallback se
+// assenti) + magazzino di chiusura live dal Cash Flow (variazione rimanenze) + stima
 // ammortamenti/TFM/imposte (uniche voci non ancora contabilizzate nel semestrale).
 function buildH1DataFromReale(P){
-  const d = Object.assign({}, H1_2026_REALE);
+  const reale = P.H1_2026_reale || H1_2026_FALLBACK;
+  const d = Object.assign({}, reale);
+  const esistenzeIniziali2026 = d.esistenzeIniziali2026 || 168359.33;
   const magazzinoAttuale = ((P.invMPK||0) + (P.invIMBK||0) + (P.invSLK||0) + (P.invPFK||0)) * 1000;
-  d.varRimanenze = magazzinoAttuale - d.esistenzeIniziali2026;
-  delete d.esistenzeIniziali2026;
+  d.varRimanenze = magazzinoAttuale - esistenzeIniziali2026;
+  delete d.esistenzeIniziali2026; delete d._fonte; delete d._nota;
 
   const ricaviTotali = d.ricavi + d.ricaviDiversi + d.ricaviStampi;
   const costoMP = d.mpAcquisti + d.materialiConsumo + d.imballi + d.pfAcquistati;
