@@ -1115,6 +1115,18 @@ function renderVariabili() {
 }
 
 // ─── SIMULATORE COSTO ORARIO ──────────────────────────────────────────────────
+// Ore effettive annue: tiene conto della capacità ridotta ad agosto (~54%, 2 sett.
+// ferie) e dicembre (~81%, 1 sett. chiusura) — stessi fattori di stagionalità usati
+// nel Cash Flow (SEAS[7]=0.54, SEAS[11]=0.81). Gli altri 10 mesi lavorano a piena
+// capacità: la stagionalità del Cash Flow sulle altre voci riflette la domanda, non
+// la capacità produttiva fisica, quindi qui non si applica.
+function oreEffettiveAnno(turni, giorniLavoro, nPresse){
+  const AGO_FATTORE = 0.54, DIC_FATTORE = 0.81;
+  const giorniMeseBase = giorniLavoro / 12;
+  const giorniEffettivi = giorniMeseBase * (10 + AGO_FATTORE + DIC_FATTORE);
+  return 8 * turni * giorniEffettivi * nPresse;
+}
+
 // Ricalibra il simulatore costo orario sui dati reali H1 2026 (annualizzati ×2,
 // per restare confrontabile con gli altri anni che sono cifre a 12 mesi).
 function recalcSimFromH1(){
@@ -1132,7 +1144,7 @@ function recalcSimFromH1(){
   const turni = simParams.turni || 1;
   const nPresse = simParams.nPresse || 6;
   const giorniLavoro = simParams.giorniLavoro || 220;
-  const oreTotaliAnno = 8 * turni * giorniLavoro * nPresse;
+  const oreTotaliAnno = oreEffettiveAnno(turni, giorniLavoro, nPresse);
 
   simParams = {
     _anno: 'H1 2026 reale (×2 annualizzato)',
@@ -1165,7 +1177,7 @@ function renderSimulator() {
   const oreTurno = 8;
   const turni = annoRef === '2025' ? 1 : 2;
   const nPresse = 6;
-  const oreTotaliAnno = oreTurno * turni * giorniLavoro * nPresse;
+  const oreTotaliAnno = oreEffettiveAnno(turni, giorniLavoro, nPresse);
 
   // Carica da localStorage se disponibile
   if (Object.keys(simParams).length === 0) {
@@ -1190,7 +1202,7 @@ function renderSimulator() {
   ref.textContent = simParams._anno || annoRef;
 
   // Calcolo ore totali dai parametri correnti
-  const oreTotaliCalc = simParams.turni * oreTurno * simParams.giorniLavoro * simParams.nPresse;
+  const oreTotaliCalc = oreEffettiveAnno(simParams.turni, simParams.giorniLavoro, simParams.nPresse);
 
   const inputs = document.getElementById('sim-inputs');
   const fields = [
@@ -1324,7 +1336,7 @@ function renderSimResult() {
       <div>
         <div style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:0.7px;margin-bottom:6px">Ore totali / anno</div>
         <div style="font-family:var(--mono);font-size:20px;color:var(--text)">${oreTot.toLocaleString('it-IT')}</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:3px">${(s.turni||1)} turno/i × 8h × ${s.giorniLavoro||220}gg × ${s.nPresse||8} presse</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:3px">${(s.turni||1)} turno/i × 8h × ${s.giorniLavoro||220}gg × ${s.nPresse||8} presse — al netto di ago (54%) e dic (81%)</div>
       </div>
       <div>
         <div style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:0.7px;margin-bottom:6px">Costo industriale / ora</div>
