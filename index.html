@@ -395,7 +395,10 @@
     <div class="card full-width">
       <div class="card-header">
         <div class="card-title">🔧 Simulatore — Costo Orario Produzione</div>
-        <span class="card-badge">Parametri modificabili</span>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button onclick="recalcSimFromH1()" style="font-size:11px;padding:5px 12px;border-radius:6px;border:1px solid rgba(79,110,247,0.3);background:rgba(79,110,247,0.08);color:var(--accent);cursor:pointer;white-space:nowrap">🔗 Ricalcola da H1 2026</button>
+          <span class="card-badge">Parametri modificabili</span>
+        </div>
       </div>
       <div class="nota">
         <strong>Come si usa:</strong> modifica i parametri qui sotto per calcolare il costo orario di produzione (base per la valorizzazione commesse). I valori di default sono derivati dal bilancio <span id="sim-anno-ref">2025</span>.
@@ -1112,10 +1115,45 @@ function renderVariabili() {
 }
 
 // ─── SIMULATORE COSTO ORARIO ──────────────────────────────────────────────────
+// Ricalibra il simulatore costo orario sui dati reali H1 2026 (annualizzati ×2,
+// per restare confrontabile con gli altri anni che sono cifre a 12 mesi).
+function recalcSimFromH1(){
+  if (!CF_SYNC.ok) { alert('Sincronizzazione con il Cash Flow non ancora completata — riprova tra qualche secondo.'); return; }
+  const dH1 = DATA['H1-2026'];
+  const keys = ['ricavi','ricaviDiversi','ricaviStampi','varRimanenze','mpAcquisti','materialiConsumo','imballi',
+    'pfAcquistati','lavCTerzi','salari','interinale','contributi','tfr','welfare','energia','affitti','leasing',
+    'noleggi','ammMacchinari','ammStampi','ammAltri','ammAuto','provvigioni','pubblicita','svariComm','royalties',
+    'consulAmm','consulTec','compensoAmm','tfmAmm','revisore','speseBancarie','manutenzioni','altriGA','interessi',
+    'ricaviTitoli','intAttiviCC','dividendi','ires','irap','utile'];
+  const d = {};
+  keys.forEach(k => { d[k] = (dH1[k]||0) * 2; }); // annualizzato
+  const c = calc(d);
+
+  const turni = simParams.turni || 1;
+  const nPresse = simParams.nPresse || 6;
+  const giorniLavoro = simParams.giorniLavoro || 220;
+  const oreTotaliAnno = 8 * turni * giorniLavoro * nPresse;
+
+  simParams = {
+    _anno: 'H1 2026 reale (×2 annualizzato)',
+    turni, nPresse, giorniLavoro,
+    costisFissiAnno: Math.round(d.affitti + d.leasing + d.noleggi + c.ammTot + d.manutenzioni + c.costoPersonale * 0.47),
+    costiCommGAAnno: Math.round(c.costoComm + c.costoGA + c.costoPersonale * 0.13),
+    costoMP_h: Math.round(c.costoMP / oreTotaliAnno * 100) / 100,
+    costoLavoroDiretto: Math.round(c.costoPersonale * 0.40 / oreTotaliAnno * 100) / 100,
+    costoEnergia: Math.round(d.energia * 0.8 / oreTotaliAnno * 100) / 100,
+    costoCTerzi: Math.round(d.lavCTerzi / oreTotaliAnno * 100) / 100,
+    pctOverhead: simParams.pctOverhead || 10,
+    pctScarto: simParams.pctScarto || 3,
+    pctMargine: simParams.pctMargine || 30,
+  };
+  saveContState();
+  renderSimulator();
+}
+
 function renderSimulator() {
   const ref = document.getElementById('sim-anno-ref');
   const annoRef = currentAnno === 'delta' ? '2025' : currentAnno;
-  ref.textContent = annoRef;
   const d = DATA[annoRef];
   const c = calc(d);
 
@@ -1148,6 +1186,8 @@ function renderSimulator() {
       costoCTerzi: Math.round(d.lavCTerzi / oreTotaliAnno * 100) / 100,
     };
   }
+
+  ref.textContent = simParams._anno || annoRef;
 
   // Calcolo ore totali dai parametri correnti
   const oreTotaliCalc = simParams.turni * oreTurno * simParams.giorniLavoro * simParams.nPresse;
