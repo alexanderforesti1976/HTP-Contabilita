@@ -573,11 +573,17 @@ function calc(d) {
   // Totale costi (senza imposte e fin)
   const costiOperativi = costoMP + costoEsterno + costoPersonale + ammTot + costoStruttura + d.manutenzioni + costoComm + costoGA;
 
+  // Effetto scorte esplicito per la riga "Variazione rimanenze" nel prospetto:
+  // valorAggiunto - (ricavi - acquisti_lordi - lavorazioni_terzi), coerente per costruzione
+  // con qualunque convenzione di segno usata sopra per varRimanenze.
+  const acquistiLordi = d.mpAcquisti + d.materialiConsumo + d.imballi + d.pfAcquistati;
+  const effettoScorte = valorAggiunto - (ricaviTotali - acquistiLordi - costoEsterno);
+
   return {
     ricaviTotali, costoMP, costoEsterno, valorAggiunto,
     costoPersonale, ebitda, ammTot, ebit,
     costoStruttura, ebitNetto, costoComm, costoGA,
-    ebt, imposte, utileCalc, costiOperativi
+    ebt, imposte, utileCalc, costiOperativi, effettoScorte
   };
 }
 
@@ -822,7 +828,8 @@ function renderCE() {
     { label: 'Ricavi diversi + vendita stampi', val: d.ricaviDiversi + d.ricaviStampi, sub: true },
     { margin: true, label: 'TOTALE RICAVI', val: R },
     { sep: 'Costi Variabili' },
-    { label: '− Costo materie prime netto', val: -c.costoMP, sub: true },
+    { label: '− Materie prime, imballi, semilavorati (acquisti)', val: -(d.mpAcquisti + d.materialiConsumo + d.imballi + d.pfAcquistati), sub: true },
+    { label: (c.effettoScorte >= 0 ? '+ ' : '− ') + 'Variazione rimanenze', val: c.effettoScorte, sub: true, pos: c.effettoScorte >= 0 },
     { label: '− Lavorazioni conto terzi', val: -d.lavCTerzi, sub: true },
     { margin: true, label: '= VALORE AGGIUNTO', val: c.valorAggiunto },
     { sep: 'Costo del Lavoro' },
