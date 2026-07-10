@@ -808,7 +808,7 @@ function renderCE() {
   }
 
   if (currentAnno === 'H1-2026') {
-    badge.textContent = CF_SYNC.ok ? '1° Semestre 2026 (gen-giu) — stima da modello Cash Flow' : '1° Semestre 2026 — sincronizzazione in corso…';
+    badge.textContent = CF_SYNC.ok ? '1° Semestre 2026 (gen-giu) — bilancio reale' : '1° Semestre 2026 — sincronizzazione in corso…';
   } else {
     badge.textContent = 'Anno ' + currentAnno;
   }
@@ -818,7 +818,7 @@ function renderCE() {
 
   const banner = currentAnno === 'H1-2026'
     ? `<div style="background:rgba(79,110,247,0.08);border-bottom:1px solid rgba(79,110,247,0.2);padding:10px 20px;font-size:12px;color:var(--accent)">
-        🔗 <strong>Stima H1 2026 dal modello Cash Flow</strong> — non è un bilancio contabile: ricavi = quota H1 implicita nel target annuo (€${(CF_SYNC.rev26||0).toLocaleString('it-IT')}k) + ordini confermati; materie prime/energia/commerciale/royalties = % dal Cash Flow; personale (inclusi TFR e 13ª) = 2025 reale riproporzionato al semestre; magazzino = valore reale dai cursori scorte del Cash Flow. ${CF_SYNC.updated ? 'Aggiornato al ' + CF_SYNC.updated + '.' : ''}
+        📋 <strong>Bilancio reale H1 2026 (01/01–30/06)</strong> — dati da bozza bilancio 30/06/2026 + fatture di giugno registrate a luglio (competenza, €29.526,11). Ammortamenti, TFM amministratore e imposte non sono ancora contabilizzati nel semestrale: sono stimati dai parametri del Cash Flow e applicati al risultato reale. Magazzino di chiusura preso dai cursori scorte del Cash Flow (aggiornabile). ${CF_SYNC.updated ? 'Sincronizzato al ' + CF_SYNC.updated + '.' : ''}
       </div>`
     : '';
 
@@ -1415,83 +1415,67 @@ let currentCliAnno = '2024';
 // i due strumenti senza doverli aggiornare due volte.
 let CF_SYNC = { loaded:false, ok:false, OREV:null, OBACKLOG:null, P:null, rev26:null, growth27:null, updated:null, byClient:{}, tot2026:0, tot2027:0 };
 
-// ─── Stagionalità e mesi — replica esatta di quanto usato nel Cash Flow, ────
-// necessaria per calcolare la quota di fatturato "implicita" H1 2026 dal target annuo.
-const CF_SEAS=[.80,.78,.90,.90,.78,.92,.85,0.54,1.02,1.08,1.12,0.81];
-const CF_MONTHS=[
-  {c:7,y:2026},{c:8,y:2026},{c:9,y:2026},{c:10,y:2026},{c:11,y:2026},{c:12,y:2026},
-  {c:1,y:2027},{c:2,y:2027},{c:3,y:2027}
-];
-function cfGetH1Revenue(P, OREV){
-  const fullYearSeas = CF_SEAS.reduce((s,v)=>s+v,0);
-  let seasH2 = 0; for (let c=7;c<=12;c++) seasH2 += CF_SEAS[c-1];
-  const target26 = P.rev26 * seasH2 / fullYearSeas;
-  // H2 2026 pianificato (backlog confermato o quota stagionale, il maggiore dei due)
-  let sumH2_26 = 0;
-  CF_MONTHS.forEach((m,i) => {
-    if (m.y !== 2026) return;
-    const quota = target26 * CF_SEAS[m.c-1] / seasH2;
-    const conf = OREV ? OREV[i] : undefined;
-    sumH2_26 += (conf !== undefined ? Math.max(conf, quota) : quota);
-  });
-  const h1Implicit = P.rev26 - target26;   // quota H1 "implicita" nel target annuo
-  const revFull26 = h1Implicit + sumH2_26;
-  return { h1Implicit, revFull26 };
-}
-// Costruisce un oggetto DATA-compatibile per H1 2026 usando le assunzioni di costo
-// del Cash Flow (stesse formule di calcPL, limitate al semestre gen-giu).
-function buildH1DataFromCashFlow(P, OREV){
-  const { h1Implicit } = cfGetH1Revenue(P, OREV);
-  const rev = Math.max(0, h1Implicit) * 1000; // k€ → €
-  const mat = rev * P.matPct / 100;
-  const sub = rev * P.subPct / 100;
-  const energy = rev * P.energyPct / 100;
-  const rent = P.rentK * 6 * 1000;
-  const comm = rev * P.commPct / 100;
-  const roy = rev * P.royPct / 100;
-  const other = P.otherFixedK * 6 * 1000 + rev * P.otherVarPct / 100;
-  const amm = P.amm26 / 2 * 1000;
-  const intInc = 10 / 2 * 1000;
-  const intExp = 25 / 2 * 1000;
+// ─── DATI REALI BILANCIO H1 2026 (01/01–30/06/2026) ─────────────────────────
+// Fonte: bozza_bilancio_30-06-26.pdf (Stato Patrimoniale + Conto Economico, mastrini)
+// + RETTIFICHE_FATTURE_GIUGNO_2026_RICEVUTE_A_LUGLIO_E_2026.ods (competenza: fatture
+//   datate 30/06/26 ma ricevute/registrate a luglio, €29.526,11 totali, già inclusi qui).
+//
+// Perché questi numeri sono statici e non "modellati" dal Cash Flow: il 1° semestre
+// 2026 è un periodo CHIUSO — il fatturato e i costi già sostenuti sono fatti storici,
+// non previsioni che si muovono nel tempo. Il target €2.350k di Cash Flow è pensato per
+// proiettare il fatturato FUTURO (H2 2026, 2027), non per ricostruire un semestre già
+// contabilizzato: usarlo qui darebbe un numero sbagliato (verificato: la quota H1
+// implicita nel target sottostimava il fatturato reale di oltre €100k).
+// Restano invece agganciati live al Cash Flow solo le voci genuinamente ancora stimate:
+// ammortamenti, TFM amministratore, imposte (non contabilizzati nel semestrale) e il
+// magazzino di chiusura (dai cursori scorte, aggiornabili quando cambiano).
+const H1_2026_REALE = {
+  ricavi: 1236650.31, ricaviDiversi: 547.26, ricaviStampi: 11800.00,
+  mpAcquisti: 195559.11, materialiConsumo: 9371.07, imballi: 4174.22, pfAcquistati: 22728.69,
+  lavCTerzi: 49752.74,
+  salari: 235311.75, interinale: 0, contributi: 84915.49, tfr: 5099.99, welfare: 11500.58,
+  energia: 40845.32,
+  affitti: 52376.91, leasing: 6550.91, noleggi: 24079.37,
+  manutenzioni: 22304.77,
+  provvigioni: 34933.91, pubblicita: 51087.64, svariComm: 11268.42, royalties: 8315.00,
+  consulAmm: 798.00, consulTec: 6450.00, compensoAmm: 11977.61, revisore: 3121.27, speseBancarie: 2130.96,
+  altriGA: 126577.84,
+  interessi: 12299.54, ricaviTitoli: 0, intAttiviCC: 2074.27, dividendi: 0,
+  esistenzeIniziali2026: 168359.33, // apertura magazzino reale (MP 119k + imballi 3,5k + semilav. 23,7k + PF 22,2k)
+};
 
-  // Magazzino reale al 30/06 (dai cursori scorte del Cash Flow, non stimato)
-  // Apertura 2026 (fine 2025): MP €119k + Imballi €3,5k + Semilav. €23,7k + PF €22,2k = €168,4k
-  const magazzinoAttuale = (P.invMPK + P.invIMBK + P.invSLK + P.invPFK) * 1000;
-  const magazzinoApertura2026 = 168400;
-  const di = magazzinoAttuale - magazzinoApertura2026;
+// Costruisce l'oggetto DATA per H1 2026: dati reali di bilancio (sopra, fissi) +
+// magazzino di chiusura live dal Cash Flow (variazione rimanenze) + stima
+// ammortamenti/TFM/imposte (uniche voci non ancora contabilizzate nel semestrale).
+function buildH1DataFromReale(P){
+  const d = Object.assign({}, H1_2026_REALE);
+  const magazzinoAttuale = ((P.invMPK||0) + (P.invIMBK||0) + (P.invSLK||0) + (P.invPFK||0)) * 1000;
+  d.varRimanenze = magazzinoAttuale - d.esistenzeIniziali2026;
+  delete d.esistenzeIniziali2026;
 
-  // Personale: riproporzionato dal 2025 reale (6/12), non dal parametro medio del Cash Flow.
-  // La quota 2025 già include per costruzione la sua quota di TFR e 13ª — dividerla a metà
-  // dà correttamente il costo H1 accrual-consistent, senza bisogno di aggiungere la 13ª a parte.
-  const D25 = DATA[2025];
-  const salari = D25.salari * 0.5;
-  const interinale = D25.interinale * 0.5;
-  const contributi = D25.contributi * 0.5;
-  const tfr = D25.tfr * 0.5;
-  const welfare = D25.welfare * 0.5;
-  const costoPersonaleH1 = salari + interinale + contributi + tfr + welfare;
-
-  const ebitda = rev + di - mat - sub - costoPersonaleH1 - energy - rent - comm - roy - other;
+  const ricaviTotali = d.ricavi + d.ricaviDiversi + d.ricaviStampi;
+  const costoMP = d.mpAcquisti + d.materialiConsumo + d.imballi + d.pfAcquistati;
+  const valoreAggiunto = ricaviTotali - costoMP - d.lavCTerzi + (d.varRimanenze > 0 ? d.varRimanenze : 0);
+  const costoPersonale = d.salari + d.interinale + d.contributi + d.tfr + d.welfare;
+  const ebitda = valoreAggiunto - costoPersonale;
+  const amm = (P.amm26 || 110) / 2 * 1000; // stima: metà ammortamento annuo dal Cash Flow
   const ebit = ebitda - amm;
-  const ebt = ebit + intInc - intExp;
+  const costoStruttura = d.affitti + d.leasing + d.noleggi + d.energia;
+  const ebitNetto = ebit - costoStruttura - d.manutenzioni;
+  const costoComm = d.provvigioni + d.pubblicita + d.svariComm + d.royalties;
+  const costoGAExTfm = d.consulAmm + d.consulTec + d.compensoAmm + d.revisore + d.speseBancarie + d.altriGA;
+  const ebtPreTfm = ebitNetto - costoComm - costoGAExTfm - d.interessi + d.intAttiviCC + d.ricaviTitoli + d.dividendi;
   // TFM Amministratore: 20% dell'utile lordo (EBT), come da parametro Cash Flow
-  const tfm = Math.max(0, ebt * P.tfmPct / 100);
-  const taxBase = Math.max(0, ebt - tfm);
-  const ires = taxBase * P.iresR / 100;
-  const irap = taxBase * P.irapR / 100;
-  const net = ebt - tfm - ires - irap;
+  const tfm = Math.max(0, ebtPreTfm * (P.tfmPct || 20) / 100);
+  const taxBase = Math.max(0, ebtPreTfm - tfm);
+  const ires = taxBase * (P.iresR || 24) / 100;
+  const irap = taxBase * (P.irapR || 3.9) / 100;
+  const net = ebtPreTfm - tfm - ires - irap;
 
-  return {
-    ricavi: rev, ricaviDiversi: 0, ricaviStampi: 0, varRimanenze: di,
-    mpAcquisti: mat, materialiConsumo: 0, imballi: 0, pfAcquistati: 0, lavCTerzi: sub,
-    salari, interinale, contributi, tfr, welfare,
-    energia: energy, affitti: rent, leasing: 0, noleggi: 0,
-    ammMacchinari: amm, ammStampi: 0, ammAltri: 0, ammAuto: 0,
-    provvigioni: comm, pubblicita: 0, svariComm: 0, royalties: roy,
-    consulAmm: 0, consulTec: 0, compensoAmm: 0, tfmAmm: tfm, revisore: 0, speseBancarie: 0, manutenzioni: 0, altriGA: other,
-    interessi: intExp, ricaviTitoli: 0, intAttiviCC: intInc, dividendi: 0,
-    ires: ires, irap: irap, utile: net, oreProduzione: 15*1700, nPresse: 6,
-  };
+  d.ammMacchinari = amm; d.ammStampi = 0; d.ammAltri = 0; d.ammAuto = 0;
+  d.tfmAmm = tfm; d.ires = ires; d.irap = irap; d.utile = net;
+  d.oreProduzione = 15 * 1700; d.nPresse = 6;
+  return d;
 }
 function normCli(s){
   return (s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
@@ -1553,7 +1537,7 @@ function loadCashFlowSync(){
       CF_SYNC.updated = data._updated || null;
       const agg = aggregateBacklog(CF_SYNC.OBACKLOG);
       CF_SYNC.byClient = agg.byClient; CF_SYNC.tot2026 = agg.tot2026; CF_SYNC.tot2027 = agg.tot2027;
-      DATA['H1-2026'] = buildH1DataFromCashFlow(data, CF_SYNC.OREV);
+      DATA['H1-2026'] = buildH1DataFromReale(data);
       updateSyncBadge();
       render();
     })
